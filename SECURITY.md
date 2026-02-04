@@ -4,7 +4,6 @@
 
 Please report security issues privately.
 
-- Email: security@sparge.example
 - PGP: available on request
 
 We will acknowledge receipt within 72 hours and provide a timeline for fixes.
