@@ -1,0 +1,123 @@
+﻿<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sparge Explorer</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <a class="brand" href="/">
+      <img src="/assets/sparge_logo.png" alt="Sparge logo" class="logo-img" />
+      <div class="title">Sparge</div>
+    </a>
+    <nav class="top-nav">
+      <a href="/" class="nav-link active">Explorer</a>
+      <a href="/wallet" class="nav-link">Wallet</a>
+      <a href="https://spargenetwork.github.io/sparge-docs/" class="nav-link" target="_blank" rel="noreferrer">Docs</a>
+    </nav>
+    <div class="header-actions">
+      <form id="searchForm" class="search">
+        <input id="searchInput" type="text" placeholder="Search block / tx / address" />
+        <button class="btn ghost" type="submit">Search</button>
+      </form>
+      <div class="toggle">
+        <button id="viewBasic" class="btn chip active">Basic</button>
+        <button id="viewAdvanced" class="btn chip">Advanced / Protocol</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="info-panels">
+      <div class="info-panel">
+        <div class="panel-title">Status</div>
+        <div class="panel-body" id="statusPanel"></div>
+      </div>
+      <div class="info-panel">
+        <div class="panel-title">Genesis</div>
+        <div class="panel-body" id="genesisPanel"></div>
+      </div>
+    </section>
+    <section class="stats" id="chainStats"></section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <h2>Latest Transactions</h2>
+      </div>
+      <div class="tx-list" id="latestTxList">
+        <div class="detail-empty">Loading latest transactions…</div>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="panel-header">
+        <h2>Blocks</h2>
+        <div class="pager" id="pagerTop"></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Height</th>
+              <th>Txs</th>
+              <th>Timestamp</th>
+              <th>Hash</th>
+              <th>Prev hash</th>
+              <th>State root</th>
+              <th>Reward</th>
+            </tr>
+          </thead>
+          <tbody id="blocksTable"></tbody>
+        </table>
+      </div>
+      <div class="panel-footer" id="pagerBottom"></div>
+    </section>
+
+    <section class="panel" id="blockDetails">
+      <div class="panel-header">
+        <h2>Block details</h2>
+        <div class="toast" id="copyToast">Copied!</div>
+      </div>
+      <div class="details-grid" id="blockDetailsBody">
+        <div class="detail-empty">Selecteer een block om details te bekijken.</div>
+      </div>
+      <div class="panel-subheader">
+        <h3>Transactions</h3>
+      </div>
+      <div class="tx-list" id="blockTxList">
+        <div class="detail-empty">Selecteer een block om transacties te bekijken.</div>
+      </div>
+    </section>
+
+    <section class="panel" id="txDetailsPanel">
+      <div class="panel-header">
+        <h2>Transaction</h2>
+      </div>
+      <div class="details-grid" id="txDetailsBody">
+        <div class="detail-empty">Selecteer een transactie om details te bekijken.</div>
+      </div>
+    </section>
+
+    <section class="panel" id="addressDetailsPanel">
+      <div class="panel-header">
+        <h2>Address</h2>
+        <div class="toast" id="addressCopyToast">Copied!</div>
+      </div>
+      <div class="details-grid" id="addressDetailsBody">
+        <div class="detail-empty">Selecteer een address om details te bekijken.</div>
+      </div>
+      <div class="panel-subheader">
+        <h3>Recent Transactions</h3>
+      </div>
+      <div class="tx-list" id="addressTxList">
+        <div class="detail-empty">Geen transacties beschikbaar.</div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+<%- include('partials/header', { title: 'Error', userId: userId }) %>
+<div class="card">
+  <h1>Action failed</h1>
+  <p class="error"><%= message %></p>
+  <a class="button" href="javascript:history.back()">Go back</a>
+</div>
+<%- include('partials/footer') %>

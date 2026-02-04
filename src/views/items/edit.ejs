@@ -1,0 +1,53 @@
+<%- include('../partials/header', { title: 'Edit Item', userId: userId }) %>
+<div class="card">
+  <h1>Edit Item</h1>
+  <form method="post" action="/items/<%= item.id %>" class="form">
+    <label>SKU
+      <input type="text" name="sku" value="<%= item.sku %>" />
+      <span class="hint">Parent items can leave SKU empty to auto-generate a GRP SKU.</span>
+    </label>
+    <label>Name
+      <input type="text" name="name" value="<%= item.name %>" required />
+    </label>
+    <label>Category
+      <input type="text" name="category" value="<%= item.category || '' %>" />
+    </label>
+    <label>Manufacturer
+      <input type="text" name="manufacturer" value="<%= item.manufacturer || '' %>" />
+    </label>
+    <label>Purchase Price (EUR)
+      <input type="number" step="0.01" name="purchasePrice" value="<%= item.purchasePrice || 0 %>" required />
+    </label>
+    <label>Parent Item
+      <select name="parentItemId">
+        <option value="">(None)</option>
+        <% parentItems.forEach(parent => { %>
+          <option value="<%= parent.id %>" <%= parent.id === item.parentItemId ? 'selected' : '' %>><%= parent.name %></option>
+        <% }) %>
+      </select>
+    </label>
+    <label>Supplier
+      <select name="supplierId">
+        <option value="">(Optional)</option>
+        <% suppliers.forEach(supplier => { %>
+          <option value="<%= supplier.id %>" <%= supplier.id === item.supplierId ? 'selected' : '' %>><%= supplier.name %></option>
+        <% }) %>
+      </select>
+    </label>
+    <label>Base Unit
+      <select name="baseUnit" required>
+        <% ['kg','g','L','ml','pcs'].forEach(u => { %>
+          <option value="<%= u %>" <%= item.baseUnit === u ? 'selected' : '' %>><%= u %></option>
+        <% }) %>
+      </select>
+    </label>
+    <label>Allowed Decimals
+      <input type="number" name="allowedDecimals" value="<%= item.allowedDecimals %>" min="0" max="6" required />
+    </label>
+    <label>Minimum Stock
+      <input type="number" step="any" name="minStock" value="<%= item.minStock %>" required />
+    </label>
+    <button type="submit">Save</button>
+  </form>
+</div>
+<%- include('../partials/footer') %>

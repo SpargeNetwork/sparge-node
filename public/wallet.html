@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sparge Wallet</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <a class="brand" href="/">
+      <img src="/assets/sparge_logo.png" alt="Sparge logo" class="logo-img" />
+      <div class="title">Sparge</div>
+    </a>
+    <nav class="top-nav">
+      <a href="/" class="nav-link">Explorer</a>
+      <a href="/wallet" class="nav-link active">Wallet</a>
+      <a href="https://spargenetwork.github.io/sparge-docs/" class="nav-link" target="_blank" rel="noreferrer">Docs</a>
+    </nav>
+    <div class="header-actions"></div>
+  </header>
+
+  <main>
+    <section class="panel dev-wallet" id="devWalletPanel">
+      <div class="panel-header">
+        <h2>Wallet</h2>
+        <div class="status" id="devWalletStatus">Not connected</div>
+      </div>
+      <div class="wallet-grid">
+        <div class="wallet-card">
+          <div class="card-title">Wallet</div>
+          <p class="card-note">This is a development wallet. Keys are stored locally in your browser.</p>
+          <div class="wallet-actions">
+            <button class="btn primary" id="createWalletBtn">Create Wallet</button>
+            <button class="btn ghost" id="clearWalletBtn">Reset Wallet</button>
+            <button class="btn ghost" id="registerParticipantBtn">Register as participant</button>
+            <button class="btn ghost" id="unregisterParticipantBtn">Unregister</button>
+            <button class="btn ghost" id="heartbeatBtn">Heartbeat</button>
+          </div>
+          <div class="wallet-actions">
+            <input class="input" type="text" id="sponsorAddressInput" placeholder="Sponsor participant address (spg_...)" />
+            <button class="btn ghost" id="sponsorParticipantBtn">Sponsor address</button>
+          </div>
+          <div class="wallet-details">
+            <div class="detail-row"><span>Address</span><span id="walletAddress">-</span></div>
+            <div class="detail-row">
+              <span>Public Key</span>
+              <span>
+                <button class="copy-link" id="togglePublicKey">Show</button>
+                <span id="walletPublicKey" class="mono hidden">-</span>
+              </span>
+            </div>
+            <div class="detail-row">
+              <span>Private Key</span>
+              <span>
+                <button class="copy-link" id="togglePrivateKey">Reveal</button>
+                <span id="walletPrivateKey" class="mono hidden">-</span>
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="wallet-card">
+          <div class="card-title">Balance</div>
+          <div class="balance-value" id="walletBalance">-</div>
+          <div class="status" id="walletBalanceHint">Waiting for block rewards…</div>
+          <div class="detail-row"><span>Nonce</span><span id="walletNonce">-</span></div>
+          <div class="detail-row"><span>Participant Status</span><span id="participantStatus">-</span></div>
+          <div class="detail-row"><span>Bond Locked</span><span id="participantBond">-</span></div>
+          <div class="detail-row"><span>Sponsor</span><span id="participantSponsor">-</span></div>
+          <div class="detail-row"><span>Next Activity</span><span id="participantNext">-</span></div>
+          <div class="detail-row"><span>Auto Heartbeat</span><span><input type="checkbox" id="autoHeartbeatToggle" /></span></div>
+        </div>
+        <div class="wallet-card">
+          <div class="card-title">Send Transaction</div>
+          <form id="sendTxForm" class="tx-form">
+            <label>To Address<input type="text" id="txTo" required placeholder="spg_..." /></label>
+            <label>Amount (SPRG)<input type="text" id="txAmount" required placeholder="0.0" /></label>
+            <label>Fee (SPRG)<input type="text" id="txFee" required placeholder="0.0" /></label>
+            <div class="status" id="txFeeHint">Minimum fee: -</div>
+            <label>Memo (optional)<input type="text" id="txMemo" maxlength="128" placeholder="Memo (max 128 chars)" /></label>
+            <button class="btn primary" id="sendTxBtn" type="submit">Send</button>
+            <div class="status" id="sendTxStatus"></div>
+          </form>
+        </div>
+        <div class="wallet-card">
+          <div class="card-title">Recent Activity</div>
+          <div class="tx-list" id="walletActivity">
+            <div class="detail-empty">No activity yet.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

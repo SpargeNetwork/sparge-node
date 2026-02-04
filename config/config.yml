@@ -1,0 +1,36 @@
+﻿chain:
+  name: Sparge
+  symbol: SPRG
+  chainId: "sparge-mainnet"
+  blockTimeSeconds: 51
+  protocolVersion: "1.0.0"
+  economicsVersion: "1.0.0"
+
+token:
+  decimals: 6
+  initialSupplyTokens: "5100000000"
+
+mining:
+  proposerAddress: "spg_YR8kUueUzG6fZ99amBQGz9nZKEs"
+
+rewards:
+  treasuryAddress: "TREASURY"
+
+storage:
+  blocksPerFile: 510
+
+gas:
+  blockLimit: 510
+  targetRatioBps: 8000
+  baseFeeInitialMicro: "1000"
+  baseFeeChangeDenominator: 8
+  minBaseFeeMicro: "0"
+
+mempool:
+  sort: fee
+
+tx:
+  minFeeMicro: "1000"
+
+dev:
+  enableAdmin: true

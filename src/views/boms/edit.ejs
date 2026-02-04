@@ -1,0 +1,24 @@
+<%- include('../partials/header', { title: 'Edit BOM', userId: userId }) %>
+<div class="card">
+  <h1>Edit BOM</h1>
+  <form method="post" action="/boms/<%= bom.id %>/update" class="form">
+    <label>Name
+      <input type="text" name="name" value="<%= bom.name %>" required />
+    </label>
+    <label>Finished Item
+      <select name="finishedItemId" required>
+        <% items.forEach(item => { %>
+          <option value="<%= item.id %>" <%= item.id === bom.finishedItemId ? 'selected' : '' %>><%= item.name %></option>
+        <% }) %>
+      </select>
+    </label>
+    <label>Output Quantity
+      <input type="number" step="any" name="outputQty" value="<%= bom.outputQty %>" required />
+    </label>
+    <label>Output Unit
+      <input type="text" name="outputUnit" value="<%= bom.outputUnit %>" required />
+    </label>
+    <button type="submit">Save</button>
+  </form>
+</div>
+<%- include('../partials/footer') %>

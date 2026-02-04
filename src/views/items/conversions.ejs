@@ -1,0 +1,41 @@
+<%- include('../partials/header', { title: 'Unit Conversions', userId: userId }) %>
+<div class="toolbar">
+  <h1>Unit Conversions - <%= item.name %></h1>
+  <a class="button" href="/items">Back to Items</a>
+</div>
+<div class="card">
+  <h2>Add Conversion</h2>
+  <form method="post" action="/items/<%= item.id %>/conversions" class="form inline">
+    <label>Unit Name
+      <input type="text" name="unitName" required />
+    </label>
+    <label>To Base Factor (<%= item.baseUnit %>)
+      <input type="number" step="any" name="toBaseFactor" required />
+    </label>
+    <button type="submit">Add</button>
+  </form>
+</div>
+<table class="table">
+  <thead>
+    <tr>
+      <th>Unit</th>
+      <th>To Base</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <% conversions.forEach(conv => { %>
+      <tr>
+        <td><%= conv.unitName %></td>
+        <td><%= conv.toBaseFactor %></td>
+        <td class="actions">
+          <a href="/items/<%= item.id %>/conversions/<%= conv.id %>/edit">Edit</a>
+          <form method="post" action="/items/<%= item.id %>/conversions/<%= conv.id %>/delete" onsubmit="return confirm('Delete conversion?');">
+            <button type="submit" class="link">Delete</button>
+          </form>
+        </td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>
+<%- include('../partials/footer') %>

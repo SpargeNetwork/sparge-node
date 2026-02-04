@@ -1,0 +1,57 @@
+<%- include('../partials/header', { title: 'BOM', userId: userId }) %>
+<div class="toolbar">
+  <div>
+    <h1><%= bom.name %></h1>
+    <p class="muted">Finished item: <%= bom.finishedItem.name %> | Output: <%= bom.outputQty %> <%= bom.outputUnit %></p>
+  </div>
+  <div class="actions">
+    <a class="button" href="/boms/<%= bom.id %>/edit">Edit BOM</a>
+    <a class="button" href="/production/new">Run production</a>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Add Component</h2>
+  <form method="post" action="/boms/<%= bom.id %>/lines" class="form inline">
+    <label>Item
+      <select name="itemId" required>
+        <% items.forEach(item => { %>
+          <option value="<%= item.id %>"><%= item.name %></option>
+        <% }) %>
+      </select>
+    </label>
+    <label>Quantity
+      <input type="number" step="any" name="quantity" required />
+    </label>
+    <label>Unit
+      <input type="text" name="unit" required />
+    </label>
+    <button type="submit">Add</button>
+  </form>
+</div>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Item</th>
+      <th>Qty</th>
+      <th>Unit</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <% bom.lines.forEach(line => { %>
+      <tr>
+        <td><%= line.item.name %></td>
+        <td><%= line.quantity %></td>
+        <td><%= line.unit %></td>
+        <td class="actions">
+          <form method="post" action="/boms/<%= bom.id %>/lines/<%= line.id %>/delete" onsubmit="return confirm('Delete line?');">
+            <button type="submit" class="link">Delete</button>
+          </form>
+        </td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>
+<%- include('../partials/footer') %>

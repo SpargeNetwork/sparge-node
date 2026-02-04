@@ -1,0 +1,24 @@
+<%- include('../partials/header', { title: 'Edit PO', userId: userId }) %>
+<div class="card">
+  <h1>Edit Purchase Order</h1>
+  <form method="post" action="/pos/<%= po.id %>/update" class="form">
+    <label>PO Number
+      <input type="text" name="poNumber" value="<%= po.poNumber %>" required />
+    </label>
+    <label>Supplier
+      <select name="supplierId" required>
+        <% suppliers.forEach(supplier => { %>
+          <option value="<%= supplier.id %>" <%= supplier.id === po.supplierId ? 'selected' : '' %>><%= supplier.name %></option>
+        <% }) %>
+      </select>
+    </label>
+    <label>Order Date
+      <input type="date" name="orderDate" value="<%= po.orderDate %>" required />
+    </label>
+    <label>Transport Cost (EUR, optional)
+      <input type="number" step="0.01" name="transportCost" value="<%= po.transportCost || 0 %>" />
+    </label>
+    <button type="submit">Save</button>
+  </form>
+</div>
+<%- include('../partials/footer') %>

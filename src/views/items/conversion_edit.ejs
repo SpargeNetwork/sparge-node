@@ -1,0 +1,14 @@
+<%- include('../partials/header', { title: 'Edit Conversion', userId: userId }) %>
+<div class="card">
+  <h1>Edit Conversion - <%= conversion.item.name %></h1>
+  <form method="post" action="/items/<%= conversion.itemId %>/conversions/<%= conversion.id %>" class="form">
+    <label>Unit Name
+      <input type="text" name="unitName" value="<%= conversion.unitName %>" required />
+    </label>
+    <label>To Base Factor
+      <input type="number" step="any" name="toBaseFactor" value="<%= conversion.toBaseFactor %>" required />
+    </label>
+    <button type="submit">Save</button>
+  </form>
+</div>
+<%- include('../partials/footer') %>

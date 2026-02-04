@@ -1,0 +1,18 @@
+<%- include('../partials/header', { title: 'New Receipt', userId: userId }) %>
+<div class="card">
+  <h1>New Goods Receipt</h1>
+  <form method="post" action="/receipts" class="form">
+    <label>Purchase Order
+      <select name="purchaseOrderId" required>
+        <% pos.forEach(po => { %>
+          <option value="<%= po.id %>"><%= po.poNumber %> - <%= po.supplier.name %> (<%= po.statusLabel %>)</option>
+        <% }) %>
+      </select>
+    </label>
+    <label>Delivery Note Number (optional)
+      <input type="text" name="deliveryNoteNo" value="<%= nextDeliveryNote %>" placeholder="Auto-generate if empty" />
+    </label>
+    <button type="submit">Create</button>
+  </form>
+</div>
+<%- include('../partials/footer') %>

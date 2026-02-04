@@ -1,0 +1,14 @@
+<%- include('../partials/header', { title: 'Edit Receipt', userId: userId }) %>
+<div class="card">
+  <h1>Edit Goods Receipt</h1>
+  <form method="post" action="/receipts/<%= receipt.id %>/update" class="form">
+    <label>Delivery Note Number
+      <input type="text" name="deliveryNoteNo" value="<%= receipt.deliveryNoteNo %>" required />
+    </label>
+    <label>Purchase Order
+      <input type="text" value="<%= receipt.purchaseOrder.poNumber %>" disabled />
+    </label>
+    <button type="submit">Save</button>
+  </form>
+</div>
+<%- include('../partials/footer') %>

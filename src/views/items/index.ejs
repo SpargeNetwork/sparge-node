@@ -1,0 +1,55 @@
+<%- include('../partials/header', { title: 'Items', userId: userId }) %>
+<div class="toolbar">
+  <div>
+    <h1>Items</h1>
+    <div class="inline-search">
+      <label>Search
+        <input type="text" id="itemSearch" placeholder="Type SKU, name, or category" />
+      </label>
+    </div>
+  </div>
+  <a class="button" href="/items/new">New item</a>
+</div>
+<table class="table">
+  <thead>
+    <tr>
+      <th>SKU</th>
+      <th>Name</th>
+      <th>Category</th>
+      <th>Manufacturer</th>
+      <th>Parent</th>
+      <th>Supplier</th>
+      <th>Purchase Price</th>
+      <th>Base Unit</th>
+      <th>Stock</th>
+      <th>Min Stock</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <% items.forEach(item => { %>
+      <% const stock = stockMap.get(item.id) || 0; %>
+      <tr class="<%= stock < item.minStock ? 'warn' : '' %>" data-search="<%= (item.sku + ' ' + item.name + ' ' + (item.category || '') + ' ' + (item.manufacturer || '')).toLowerCase() %>">
+        <td><%= item.sku %></td>
+        <td><%= item.name %></td>
+        <td><%= item.category || '-' %></td>
+        <td><%= item.manufacturer || '-' %></td>
+        <td><%= item.parentItemId ? (parentMap.get(item.parentItemId) || '-') : '-' %></td>
+        <td><%= item.supplierId ? (supplierMap.get(item.supplierId) || '-') : '-' %></td>
+        <td>€ <%= Number(item.purchasePrice || 0).toFixed(2) %></td>
+        <td><%= item.baseUnit %></td>
+        <td><%= stock %></td>
+        <td><%= item.minStock %></td>
+        <td class="actions">
+          <a href="/items/<%= item.id %>/edit">Edit</a>
+          <a href="/items/<%= item.id %>/conversions">Units</a>
+          <form method="post" action="/items/<%= item.id %>/delete" onsubmit="return confirm('Delete item?');">
+            <button type="submit" class="link">Delete</button>
+          </form>
+        </td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>
+<script src="/js/items.js" defer></script>
+<%- include('../partials/footer') %>

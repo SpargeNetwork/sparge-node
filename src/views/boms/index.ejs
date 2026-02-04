@@ -1,0 +1,31 @@
+<%- include('../partials/header', { title: 'BOMs', userId: userId }) %>
+<div class="toolbar">
+  <h1>Bill of Materials</h1>
+  <a class="button" href="/boms/new">New BOM</a>
+</div>
+<table class="table">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Finished Item</th>
+      <th>Output</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <% boms.forEach(bom => { %>
+      <tr>
+        <td><%= bom.name %></td>
+        <td><%= bom.finishedItem.name %></td>
+        <td><%= bom.outputQty %> <%= bom.outputUnit %></td>
+        <td class="actions">
+          <a href="/boms/<%= bom.id %>">View</a>
+          <form method="post" action="/boms/<%= bom.id %>/delete" onsubmit="return confirm('Delete BOM?');">
+            <button type="submit" class="link">Delete</button>
+          </form>
+        </td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>
+<%- include('../partials/footer') %>

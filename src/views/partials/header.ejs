@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Boecht Inventory &amp; Manufacturing</div>
+    <% if (userId) { %>
+      <nav class="nav">
+        <a href="/dashboard">Dashboard</a>
+        <a href="/items">Items</a>
+        <a href="/suppliers">Suppliers</a>
+        <a href="/pos">Purchasing</a>
+        <a href="/receipts">Receiving</a>
+        <a href="/boms">BOMs</a>
+        <a href="/production">Production</a>
+        <a href="/inventory">Inventory</a>
+      </nav>
+      <form method="post" action="/logout" class="logout">
+        <button type="submit">Logout</button>
+      </form>
+    <% } %>
+  </header>
+  <main class="page">

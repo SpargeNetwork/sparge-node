@@ -1,0 +1,24 @@
+<%- include('../partials/header', { title: 'New Production Batch', userId: userId }) %>
+<div class="card">
+  <h1>New Production Batch</h1>
+  <form method="post" action="/production" class="form">
+    <label>BOM
+      <select name="bomId" required>
+        <% boms.forEach(bom => { %>
+          <option value="<%= bom.id %>"><%= bom.name %> - <%= bom.finishedItem.name %></option>
+        <% }) %>
+      </select>
+    </label>
+    <label>Batch Number
+      <input type="text" name="batchNumber" required />
+    </label>
+    <label>Produced Quantity
+      <input type="number" step="any" name="producedQty" required />
+    </label>
+    <label>Produced Unit
+      <input type="text" name="producedUnit" required />
+    </label>
+    <button type="submit">Create Batch</button>
+  </form>
+</div>
+<%- include('../partials/footer') %>

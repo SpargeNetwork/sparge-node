@@ -1,0 +1,46 @@
+<%- include('partials/header', { title: 'Dashboard', userId: userId }) %>
+<section class="grid">
+  <div class="card">
+    <h2>Items</h2>
+    <p class="metric"><%= itemCount %></p>
+    <p class="muted">Beheer producten, basisunits en minimumvoorraad.</p>
+    <a class="link" href="/items">Manage items</a>
+  </div>
+  <div class="card">
+    <h2>Suppliers</h2>
+    <p class="metric"><%= supplierCount %></p>
+    <p class="muted">Leveranciersgegevens en contactinformatie.</p>
+    <a class="link" href="/suppliers">Manage suppliers</a>
+  </div>
+  <div class="card">
+    <h2>Purchase Orders</h2>
+    <p class="metric"><%= poCount %></p>
+    <p class="muted">Maak en beheer inkooporders.</p>
+    <a class="link" href="/pos">Manage purchasing</a>
+  </div>
+  <div class="card">
+    <h2>Goods Receiving</h2>
+    <p class="metric"> </p>
+    <p class="muted">Ontvang leveringen en boek voorraad.</p>
+    <a class="link" href="/receipts">Manage receipts</a>
+  </div>
+  <div class="card">
+    <h2>Inventory</h2>
+    <p class="metric"> </p>
+    <p class="muted">Bekijk actuele voorraad en bewegingen.</p>
+    <a class="link" href="/inventory">View inventory</a>
+  </div>
+  <div class="card">
+    <h2>Production</h2>
+    <p class="metric"> </p>
+    <p class="muted">Plan batches en verbruik grondstoffen.</p>
+    <a class="link" href="/production">Manage production</a>
+  </div>
+  <div class="card">
+    <h2>BOMs</h2>
+    <p class="metric"><%= bomCount %></p>
+    <p class="muted">Recepten en bill of materials.</p>
+    <a class="link" href="/boms">Manage recipes</a>
+  </div>
+</section>
+<%- include('partials/footer') %>

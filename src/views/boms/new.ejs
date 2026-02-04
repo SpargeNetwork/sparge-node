@@ -1,0 +1,24 @@
+<%- include('../partials/header', { title: 'New BOM', userId: userId }) %>
+<div class="card">
+  <h1>New BOM</h1>
+  <form method="post" action="/boms" class="form">
+    <label>Name
+      <input type="text" name="name" required />
+    </label>
+    <label>Finished Item
+      <select name="finishedItemId" required>
+        <% items.forEach(item => { %>
+          <option value="<%= item.id %>"><%= item.name %></option>
+        <% }) %>
+      </select>
+    </label>
+    <label>Output Quantity
+      <input type="number" step="any" name="outputQty" value="1" required />
+    </label>
+    <label>Output Unit
+      <input type="text" name="outputUnit" required />
+    </label>
+    <button type="submit">Create</button>
+  </form>
+</div>
+<%- include('../partials/footer') %>

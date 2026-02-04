@@ -1,0 +1,64 @@
+<%- include('../partials/header', { title: 'Inventory', userId: userId }) %>
+<div class="toolbar">
+  <div>
+    <h1>Inventory</h1>
+    <div class="inline-search">
+      <label>Search
+        <input type="text" id="inventorySearch" placeholder="Type item name or SKU" />
+      </label>
+    </div>
+  </div>
+</div>
+
+<section class="card">
+  <h2>Current Stock</h2>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Base Unit</th>
+        <th>Stock</th>
+        <th>Min Stock</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% items.forEach(item => { %>
+        <% const stock = item.stock || 0; %>
+        <tr class="<%= stock < item.minStock ? 'warn' : '' %>" data-search="<%= (item.name + ' ' + item.sku).toLowerCase() %>">
+          <td><%= item.name %></td>
+          <td><%= item.baseUnit %></td>
+          <td><%= stock %></td>
+          <td><%= item.minStock %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</section>
+<script src="/js/inventory.js" defer></script>
+
+<section class="card">
+  <h2>Recent Movements</h2>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Item</th>
+        <th>Type</th>
+        <th>Quantity (Base)</th>
+        <th>Reference</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% movements.forEach(m => { %>
+        <tr>
+          <td><%= m.createdAt.toISOString().slice(0,19).replace('T', ' ') %></td>
+          <td><%= m.item.name %></td>
+          <td><%= m.type %></td>
+          <td><%= m.quantity %></td>
+          <td><%= m.referenceType || '-' %> <%= m.referenceId || '' %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</section>
+<%- include('../partials/footer') %>

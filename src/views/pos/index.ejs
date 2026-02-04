@@ -1,0 +1,42 @@
+<%- include('../partials/header', { title: 'Purchase Orders', userId: userId }) %>
+<div class="toolbar">
+  <h1>Purchase Orders</h1>
+  <a class="button" href="/pos/new">New PO</a>
+</div>
+<table class="table">
+  <thead>
+    <tr>
+      <th>PO Number</th>
+      <th>Supplier</th>
+      <th>Status</th>
+      <th>Order Date</th>
+      <th>Received</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <% pos.forEach(po => { %>
+      <tr>
+        <td><%= po.poNumber %></td>
+        <td><%= po.supplier.name %></td>
+        <td>
+          <span class="badge badge-status-<%= po.status.toLowerCase() %>"><%= po.statusLabel %></span>
+        </td>
+        <td><%= po.orderDate %></td>
+        <td><%= po.receivedDate || '-' %></td>
+        <td class="actions">
+          <a href="/pos/<%= po.id %>">View</a>
+          <% if (po.status === 'CONCEPT') { %>
+            <a href="/pos/<%= po.id %>/edit">Edit</a>
+            <form method="post" action="/pos/<%= po.id %>/delete" onsubmit="return confirm('Delete PO?');">
+              <button type="submit" class="link">Delete</button>
+            </form>
+          <% } else { %>
+            <span class="muted">Locked</span>
+          <% } %>
+        </td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>
+<%- include('../partials/footer') %>

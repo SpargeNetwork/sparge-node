@@ -1,0 +1,31 @@
+<%- include('../partials/header', { title: 'Suppliers', userId: userId }) %>
+<div class="toolbar">
+  <h1>Suppliers</h1>
+  <a class="button" href="/suppliers/new">New supplier</a>
+</div>
+<table class="table">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Email</th>
+      <th>Phone</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <% suppliers.forEach(supplier => { %>
+      <tr>
+        <td><%= supplier.name %></td>
+        <td><%= supplier.email || '-' %></td>
+        <td><%= supplier.phone || '-' %></td>
+        <td class="actions">
+          <a href="/suppliers/<%= supplier.id %>/edit">Edit</a>
+          <form method="post" action="/suppliers/<%= supplier.id %>/delete" onsubmit="return confirm('Delete supplier?');">
+            <button type="submit" class="link">Delete</button>
+          </form>
+        </td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>
+<%- include('../partials/footer') %>

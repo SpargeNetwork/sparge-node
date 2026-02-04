@@ -1,0 +1,144 @@
+<%- include('../partials/header', { title: 'Goods Receipt', userId: userId }) %>
+<div class="toolbar">
+  <div>
+    <h1>Receipt <%= receipt.deliveryNoteNo %></h1>
+  </div>
+  <div class="actions">
+    <% if (receipt.status !== 'RECEIVED') { %>
+      <a class="button" href="/receipts/<%= receipt.id %>/edit">Edit</a>
+      <a class="button" href="/pos/<%= receipt.purchaseOrderId %>">Back to PO</a>
+    <% } else { %>
+      <a class="button" href="/pos/<%= receipt.purchaseOrderId %>">Back to PO</a>
+      <form method="post" action="/receipts/<%= receipt.id %>/draft" onsubmit="return confirm('Zet deze ontvangst terug naar draft?');">
+        <button type="submit" class="link">Terug naar draft</button>
+      </form>
+    <% } %>
+  </div>
+</div>
+
+<div class="card po-details">
+  <div class="details-header">
+    <div>
+      <h2>Goods Receipt</h2>
+      <p class="muted">Overzicht van de ontvangst.</p>
+    </div>
+    <span class="badge badge-status-<%= receipt.purchaseOrder.status.toLowerCase() %>"><%= receipt.purchaseOrder.statusLabel %></span>
+  </div>
+  <div class="details-grid">
+    <div class="detail">
+      <div class="detail-label">PO</div>
+      <div class="detail-value"><a href="/pos/<%= receipt.purchaseOrderId %>"><%= receipt.purchaseOrder.poNumber %></a></div>
+    </div>
+    <div class="detail">
+      <div class="detail-label">Leverancier</div>
+      <div class="detail-value"><%= receipt.purchaseOrder.supplier.name %></div>
+    </div>
+    <div class="detail">
+      <div class="detail-label">Besteld op</div>
+      <div class="detail-value"><%= receipt.purchaseOrder.orderDate || '-' %></div>
+    </div>
+    <div class="detail">
+      <div class="detail-label">Ontvangen op</div>
+      <div class="detail-value"><%= receipt.receivedAt ? receipt.receivedAt.toISOString().slice(0, 16).replace('T', ' ') : '-' %></div>
+    </div>
+    <div class="detail">
+      <div class="detail-label">Aangemaakt</div>
+      <div class="detail-value"><%= receipt.createdAt.toISOString().slice(0, 16).replace('T', ' ') %></div>
+    </div>
+    <div class="detail">
+      <div class="detail-label">Delivery Note</div>
+      <div class="detail-value"><%= receipt.deliveryNoteNo %></div>
+    </div>
+    <% if (receipt.parentReceiptId) { %>
+      <div class="detail">
+        <div class="detail-label">Backorder van</div>
+        <div class="detail-value"><a href="/receipts/<%= receipt.parentReceiptId %>">Bekijk originele ontvangst</a></div>
+      </div>
+    <% } %>
+    <% if (backorders.length > 0) { %>
+      <div class="detail">
+        <div class="detail-label">Backorders</div>
+        <div class="detail-value">
+          <% backorders.forEach((b, idx) => { %>
+            <a href="/receipts/<%= b.id %>"><%= b.deliveryNoteNo %></a><%= idx < backorders.length - 1 ? ', ' : '' %>
+          <% }) %>
+        </div>
+      </div>
+    <% } %>
+  </div>
+</div>
+
+<% const receivedByLine = receipt.lines.reduce((acc, line) => { %>
+<%   if (!line.poLineId) return acc; %>
+<%   acc[line.poLineId] = (acc[line.poLineId] || 0) + Number(line.quantity || 0); %>
+<%   return acc; %>
+<% }, {}); %>
+
+<div class="po-grid">
+  <div class="po-main">
+    <form method="post" action="/receipts/<%= receipt.id %>/confirm">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>SKU + Item</th>
+            <th>Besteld Qty</th>
+            <th>Unit</th>
+            <th>Ontvangen Qty</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% receipt.purchaseOrder.lines.forEach(line => { %>
+            <tr>
+              <td><%= line.item.sku %> - <%= line.item.name %></td>
+              <td><%= line.quantity %></td>
+              <td><%= line.unit %></td>
+              <td>
+                <% const receivedQty = receivedByLine[line.id] || 0; %>
+                <% if (receipt.status === 'RECEIVED') { %>
+                  <span><%= receivedQty %></span>
+                <% } else { %>
+                  <input type="number" step="any" name="receivedQty_<%= line.id %>" value="<%= receivedQty %>" />
+                <% } %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+      <% if (receipt.status !== 'RECEIVED') { %>
+        <div class="actions confirm-actions">
+          <button type="submit">Bevestig ontvangst</button>
+        </div>
+      <% } else { %>
+        <p class="muted">Deze ontvangst is bevestigd.</p>
+      <% } %>
+    </form>
+  </div>
+  <aside class="card po-log">
+    <div class="details-header">
+      <h2>Log</h2>
+      <span class="muted"><%= logs.length %> entries</span>
+    </div>
+    <ul class="log-list">
+      <% if (logs.length === 0) { %>
+        <li class="muted">Geen log entries.</li>
+      <% } %>
+      <% logs.forEach(entry => { %>
+        <li>
+          <div class="log-row">
+            <span class="log-action"><%= entry.action %></span>
+            <span class="muted"><%= entry.createdAt.toISOString().replace('T', ' ').slice(0, 16) %></span>
+          </div>
+          <div class="log-detail">
+            <%= entry.details %>
+            <% if (entry.relatedReceiptId) { %>
+              (<a href="/receipts/<%= entry.relatedReceiptId %>">open</a>)
+            <% } %>
+          </div>
+          <div class="log-meta">door <%= entry.username %></div>
+        </li>
+      <% }) %>
+    </ul>
+  </aside>
+</div>
+
+<%- include('../partials/footer') %>

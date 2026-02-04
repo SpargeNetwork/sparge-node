@@ -1,0 +1,18 @@
+<%- include('partials/header', { title: 'Login', userId: userId }) %>
+<div class="card narrow">
+  <h1>Admin Login</h1>
+  <% if (error) { %>
+    <p class="error"><%= error %></p>
+  <% } %>
+  <form method="post" action="/login" class="form">
+    <label>Username
+      <input type="text" name="username" required />
+    </label>
+    <label>Password
+      <input type="password" name="password" required />
+    </label>
+    <button type="submit">Sign in</button>
+  </form>
+  <p class="hint">Default credentials are admin / admin (change ADMIN_PASSWORD).</p>
+</div>
+<%- include('partials/footer') %>

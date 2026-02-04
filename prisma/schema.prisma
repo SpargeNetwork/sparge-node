@@ -1,0 +1,151 @@
+// Prisma schema for Boecht Inventory & Manufacturing
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+enum StockMovementType {
+  IN
+  OUT
+  ADJUSTMENT
+  PRODUCTION
+}
+
+enum POStatus {
+  OPEN
+  PARTIAL
+  RECEIVED
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
+model Item {
+  id              Int              @id @default(autoincrement())
+  sku             String           @unique
+  name            String
+  category        String?
+  baseUnit        String
+  allowedDecimals Int
+  minStock        Decimal          @default(0)
+  conversions     UnitConversion[]
+  poLines         PurchaseOrderLine[]
+  receiptLines    GoodsReceiptLine[]
+  bomLines        BOMLine[]
+  stockMovements  StockMovement[]
+  boms            BOM[]            @relation("FinishedItem")
+  productionBatches ProductionBatch[]
+}
+
+model UnitConversion {
+  id           Int     @id @default(autoincrement())
+  item         Item    @relation(fields: [itemId], references: [id])
+  itemId       Int
+  unitName     String
+  toBaseFactor Decimal
+
+  @@unique([itemId, unitName])
+}
+
+model Supplier {
+  id      Int     @id @default(autoincrement())
+  name    String
+  email   String?
+  phone   String?
+  address String?
+  pos     PurchaseOrder[]
+}
+
+model PurchaseOrder {
+  id          Int                 @id @default(autoincrement())
+  poNumber    String              @unique
+  supplier    Supplier            @relation(fields: [supplierId], references: [id])
+  supplierId  Int
+  status      POStatus            @default(OPEN)
+  createdAt   DateTime            @default(now())
+  lines       PurchaseOrderLine[]
+  receipts    GoodsReceipt[]
+}
+
+model PurchaseOrderLine {
+  id          Int      @id @default(autoincrement())
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  purchaseOrderId Int
+  item        Item     @relation(fields: [itemId], references: [id])
+  itemId      Int
+  quantity    Decimal
+  unit        String
+}
+
+model GoodsReceipt {
+  id              Int               @id @default(autoincrement())
+  purchaseOrder   PurchaseOrder     @relation(fields: [purchaseOrderId], references: [id])
+  purchaseOrderId Int
+  deliveryNoteNo  String
+  receivedAt      DateTime          @default(now())
+  lines           GoodsReceiptLine[]
+}
+
+model GoodsReceiptLine {
+  id            Int      @id @default(autoincrement())
+  goodsReceipt  GoodsReceipt @relation(fields: [goodsReceiptId], references: [id])
+  goodsReceiptId Int
+  item          Item     @relation(fields: [itemId], references: [id])
+  itemId        Int
+  poLineId      Int?
+  quantity      Decimal
+  unit          String
+}
+
+model StockMovement {
+  id            Int      @id @default(autoincrement())
+  item          Item     @relation(fields: [itemId], references: [id])
+  itemId        Int
+  quantity      Decimal
+  type          StockMovementType
+  referenceType String?
+  referenceId   Int?
+  createdAt     DateTime @default(now())
+}
+
+model BOM {
+  id           Int      @id @default(autoincrement())
+  name         String
+  finishedItem Item     @relation("FinishedItem", fields: [finishedItemId], references: [id])
+  finishedItemId Int
+  outputQty    Decimal  @default(1)
+  outputUnit   String
+  lines        BOMLine[]
+  batches      ProductionBatch[]
+}
+
+model BOMLine {
+  id       Int   @id @default(autoincrement())
+  bom      BOM   @relation(fields: [bomId], references: [id])
+  bomId    Int
+  item     Item  @relation(fields: [itemId], references: [id])
+  itemId   Int
+  quantity Decimal
+  unit     String
+}
+
+model ProductionBatch {
+  id            Int      @id @default(autoincrement())
+  bom           BOM      @relation(fields: [bomId], references: [id])
+  bomId         Int
+  batchNumber   String
+  producedQty   Decimal
+  producedUnit  String
+  createdAt     DateTime @default(now())
+  item          Item     @relation(fields: [itemId], references: [id])
+  itemId        Int
+}

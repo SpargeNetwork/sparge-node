@@ -1,0 +1,20 @@
+<%- include('../partials/header', { title: 'Edit Supplier', userId: userId }) %>
+<div class="card">
+  <h1>Edit Supplier</h1>
+  <form method="post" action="/suppliers/<%= supplier.id %>" class="form">
+    <label>Name
+      <input type="text" name="name" value="<%= supplier.name %>" required />
+    </label>
+    <label>Email
+      <input type="email" name="email" value="<%= supplier.email || '' %>" />
+    </label>
+    <label>Phone
+      <input type="text" name="phone" value="<%= supplier.phone || '' %>" />
+    </label>
+    <label>Address
+      <textarea name="address" rows="3"><%= supplier.address || '' %></textarea>
+    </label>
+    <button type="submit">Save</button>
+  </form>
+</div>
+<%- include('../partials/footer') %>

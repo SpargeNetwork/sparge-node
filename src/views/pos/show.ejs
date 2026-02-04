@@ -1,0 +1,213 @@
+<%- include('../partials/header', { title: 'Purchase Order', userId: userId }) %>
+<div class="toolbar">
+  <div>
+    <h1>PO <%= po.poNumber %></h1>
+  </div>
+  <div class="actions">
+    <% if (po.status === 'CONCEPT') { %>
+      <a class="button" href="/pos/<%= po.id %>/edit">Edit PO</a>
+      <form method="post" action="/pos/<%= po.id %>/confirm">
+        <button type="submit">Confirm Order</button>
+      </form>
+    <% } else { %>
+      <a class="button" href="/receipts/new">Receive goods</a>
+    <% } %>
+  </div>
+</div>
+
+<div class="card po-details">
+  <div class="details-header">
+    <div>
+      <h2>Purchase Order</h2>
+      <p class="muted">Overzicht van de belangrijkste PO-info.</p>
+    </div>
+    <span class="badge badge-status-<%= po.status.toLowerCase() %>"><%= po.statusLabel %></span>
+  </div>
+  <div class="details-grid">
+    <div class="detail">
+      <div class="detail-label">PO Nummer</div>
+      <div class="detail-value"><%= po.poNumber %></div>
+    </div>
+    <div class="detail">
+      <div class="detail-label">Leverancier</div>
+      <div class="detail-value"><%= po.supplier.name %></div>
+    </div>
+    <div class="detail">
+      <div class="detail-label">Besteld op</div>
+      <div class="detail-value"><%= po.orderDate || '-' %></div>
+    </div>
+    <div class="detail">
+      <div class="detail-label">Ontvangen op</div>
+      <div class="detail-value"><%= po.receivedDate || '-' %></div>
+    </div>
+    <div class="detail">
+      <div class="detail-label">PO VAT %</div>
+      <div class="detail-value"><%= po.vatRateDefault == null ? "-" : `${Number(po.vatRateDefault).toFixed(2)}%` %></div>
+    </div>
+    <div class="detail">
+      <div class="detail-label">Aangemaakt door</div>
+      <div class="detail-value"><%= po.createdByName %></div>
+    </div>
+    <div class="detail">
+      <div class="detail-label">Aantal regels</div>
+      <div class="detail-value"><%= po.lines.length %></div>
+    </div>
+    <div class="detail">
+      <div class="detail-label">Aangemaakt</div>
+      <div class="detail-value"><%= (po.createdAt || '').slice(0, 10) || '-' %></div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Add Line</h2>
+  <% if (po.status === 'CONCEPT') { %>
+    <form method="post" action="/pos/<%= po.id %>/lines" class="form inline">
+      <label>Item Search
+        <input type="text" id="itemFilter" placeholder="Type SKU or name" />
+      </label>
+      <label>Item
+        <select name="itemId" id="itemSelect" required>
+          <% items.forEach(item => { %>
+            <option value="<%= item.id %>" data-price="<%= item.purchasePrice || 0 %>"><%= item.sku %> - <%= item.name %></option>
+          <% }) %>
+        </select>
+      </label>
+      <label>Quantity
+        <input type="number" step="any" name="quantity" required />
+      </label>
+      <label>Unit
+        <input type="text" name="unit" required />
+      </label>
+    <label>Unit Price (EUR)
+      <input type="number" step="0.01" name="unitPrice" id="unitPrice" required />
+    </label>
+    <label>VAT % (line, optional)
+      <input type="number" step="0.01" name="vatRate" id="vatRate" placeholder="Leave blank to use PO VAT" />
+    </label>
+    <label>Line Total (EUR)
+      <input type="number" step="0.01" id="lineTotal" readonly />
+    </label>
+    <button type="submit">Add</button>
+  </form>
+  <% } else { %>
+    <p class="muted">PO is ordered and can no longer be edited.</p>
+  <% } %>
+</div>
+<script src="/js/pos.js" defer></script>
+
+<div class="po-grid">
+  <div class="po-main">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Qty</th>
+          <th>Unit</th>
+          <th>Unit Price</th>
+          <th>VAT %</th>
+          <th>Line Total</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% po.lines.forEach(line => { %>
+          <% const displayRate = line.vatRate ?? po.vatRateDefault; %>
+          <tr>
+            <td><%= line.item.name %></td>
+            <td><%= line.quantity %></td>
+            <td><%= line.unit %></td>
+            <td>&euro;  <%= Number(line.unitPrice || 0).toFixed(2) %></td>
+            <td><%= displayRate == null ? "-" : `${Number(displayRate).toFixed(2)}%` %></td>
+            <td>&euro;  <%= Number((line.unitPrice || 0) * (line.quantity || 0)).toFixed(2) %></td>
+            <td class="actions">
+              <% if (po.status === 'CONCEPT') { %>
+                <form method="post" action="/pos/<%= po.id %>/lines/<%= line.id %>/delete" onsubmit="return confirm('Delete line?');">
+                  <button type="submit" class="link">Delete</button>
+                </form>
+              <% } else { %>
+                <span class="muted">Locked</span>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <aside class="card po-log">
+    <div class="details-header">
+      <h2>Log</h2>
+      <span class="muted"><%= logs.length %> entries</span>
+    </div>
+    <ul class="log-list">
+      <% if (logs.length === 0) { %>
+        <li class="muted">Geen log entries.</li>
+      <% } %>
+      <% logs.forEach(entry => { %>
+        <li>
+          <div class="log-row">
+            <span class="log-action"><%= entry.action %></span>
+            <span class="muted"><%= entry.createdAt.toISOString().replace('T', ' ').slice(0, 16) %></span>
+          </div>
+          <div class="log-detail"><%= entry.details %></div>
+          <div class="log-meta">door <%= entry.username %></div>
+        </li>
+      <% }) %>
+    </ul>
+  </aside>
+</div>
+<% const subtotal = po.lines.reduce((sum, line) => sum + (line.unitPrice || 0) * (line.quantity || 0), 0); %>
+<% const transport = Number(po.transportCost || 0); %>
+<% const vatByRate = po.lines.reduce((acc, line) => { %>
+<%   const rate = line.vatRate ?? po.vatRateDefault ?? 0; %>
+<%   const rateNum = Number(rate || 0); %>
+<%   if (rateNum <= 0) return acc; %>
+<%   const amount = (line.unitPrice || 0) * (line.quantity || 0) * (rateNum / 100); %>
+<%   acc[rateNum] = (acc[rateNum] || 0) + amount; %>
+<%   return acc; %>
+<% }, {}); %>
+<% const vatTotal = Object.values(vatByRate).reduce((sum, val) => sum + Number(val), 0); %>
+<% const grandTotal = subtotal + transport + vatTotal; %>
+<div class="card totals">
+  <h2>Totals</h2>
+  <% if (po.status === 'CONCEPT') { %>
+    <form method="post" action="/pos/<%= po.id %>/vat" class="form inline">
+      <label>PO VAT % (optional)
+        <input type="number" step="0.01" name="vatRateDefault" value="<%= po.vatRateDefault ?? '' %>" placeholder="Leave blank to clear" />
+      </label>
+      <button type="submit">Save VAT</button>
+    </form>
+    <form method="post" action="/pos/<%= po.id %>/clear-line-vat" class="form inline" onsubmit="return confirm('Clear VAT on all lines?');">
+      <button type="submit">Clear line VAT</button>
+    </form>
+  <% } %>
+  <div class="totals-grid">
+    <div>Subtotal</div>
+    <div>&euro;  <%= subtotal.toFixed(2) %></div>
+    <div>Transport</div>
+    <div>&euro;  <%= transport.toFixed(2) %></div>
+    <% Object.keys(vatByRate).sort((a, b) => Number(a) - Number(b)).forEach(rate => { %>
+      <div>VAT (<%= Number(rate).toFixed(2) %>%)</div>
+      <div>&euro;  <%= Number(vatByRate[rate]).toFixed(2) %></div>
+    <% }) %>
+    <div><strong>Total</strong></div>
+    <div><strong>&euro;  <%= grandTotal.toFixed(2) %></strong></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Receipts</h2>
+  <ul class="list">
+    <% if (po.receipts.length === 0) { %>
+      <li>No receipts yet.</li>
+    <% } %>
+    <% po.receipts.forEach(r => { %>
+      <li><a href="/receipts/<%= r.id %>">Receipt <%= r.deliveryNoteNo %></a> - <%= r.receivedAt ? r.receivedAt.toISOString().slice(0,10) : '-' %></li>
+    <% }) %>
+  </ul>
+</div>
+<%- include('../partials/footer') %>
+
+
+
+
