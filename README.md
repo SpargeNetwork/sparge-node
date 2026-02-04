@@ -24,3 +24,6 @@ Address/public key format and txid changed. Reset chain data when upgrading:
 - Public key in JSON is raw 32-byte Ed25519 key (`publicKeyHex`)
 - txid now hashes the canonical message only (no signature)
 - Please reset chain data and wallet data for a clean start.
+
+
+📺 Development logs: [https://youtube.com/@sparge](https://youtu.be/PzWenS1G968)
