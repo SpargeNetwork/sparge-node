@@ -13,21 +13,41 @@ let currentTxId = null;
 let walletState = null;
 let walletRefreshTimer = null;
 let lastAutoHeartbeatHeight = null;
+let walletActivityEntries = [];
+let walletActivityPage = 1;
+let addressTxEntries = [];
+let addressTxLimit = 25;
+let addressTxFilter = 'all';
 
 const blocksTable = document.getElementById('blocksTable');
 const pagerTop = document.getElementById('pagerTop');
 const pagerBottom = document.getElementById('pagerBottom');
 const chainStats = document.getElementById('chainStats');
 const miningStatus = document.getElementById('miningStatus');
-const latestTxList = document.getElementById('latestTxList');
 const statusPanel = document.getElementById('statusPanel');
 const genesisPanel = document.getElementById('genesisPanel');
 const blockDetailsBody = document.getElementById('blockDetailsBody');
 const blockTxList = document.getElementById('blockTxList');
 const txDetailsBody = document.getElementById('txDetailsBody');
+const txSummaryEl = document.getElementById('txSummary');
+const txPartiesEl = document.getElementById('txParties');
+const txAmountsEl = document.getElementById('txAmounts');
+const txParticipationEl = document.getElementById('txParticipation');
+const txParticipationCard = document.getElementById('txParticipationCard');
+const txTechnicalBodyEl = document.getElementById('txTechnicalBody');
+const txBackLinkEl = document.getElementById('txBackLink');
 const copyToast = document.getElementById('copyToast');
 const addressDetailsBody = document.getElementById('addressDetailsBody');
 const addressTxList = document.getElementById('addressTxList');
+const addressHeaderEl = document.getElementById('addressHeader');
+const addressOverviewEl = document.getElementById('addressOverview');
+const addressParticipationEl = document.getElementById('addressParticipation');
+const addressParticipationCard = document.getElementById('addressParticipationCard');
+const addressDetailsEl = document.getElementById('addressDetails');
+const addressTxListPage = document.getElementById('addressTxListPage');
+const addressTxPager = document.getElementById('addressTxPager');
+const addressLoadMoreBtn = document.getElementById('addressLoadMore');
+const addressFilterTabs = document.querySelectorAll('.address-tabs .tab-btn');
 const addressCopyToast = document.getElementById('addressCopyToast');
 const devWalletPanel = document.getElementById('devWalletPanel');
 const devWalletStatus = document.getElementById('devWalletStatus');
@@ -38,6 +58,15 @@ const walletPublicKeyEl = document.getElementById('walletPublicKey');
 const walletPrivateKeyEl = document.getElementById('walletPrivateKey');
 const togglePublicKeyBtn = document.getElementById('togglePublicKey');
 const togglePrivateKeyBtn = document.getElementById('togglePrivateKey');
+const walletAddressReceiveEl = document.getElementById('walletAddressReceive');
+const walletBalanceOverviewEl = document.getElementById('walletBalanceOverview');
+const walletActivityOverview = document.getElementById('walletActivityOverview');
+const copyAddressBtn = document.getElementById('copyAddressBtn');
+const walletActivityPager = document.getElementById('walletActivityPager');
+const SPRG_ICON = '/assets/SPRG.png';
+const PARTICIPATION_ICON = '/assets/participation.png';
+const LOYAL_ICON = '/assets/loyal.png';
+const TX_ICON = '/assets/tx.png';
 const walletBalanceEl = document.getElementById('walletBalance');
 const walletBalanceHintEl = document.getElementById('walletBalanceHint');
 const walletNonceEl = document.getElementById('walletNonce');
@@ -58,6 +87,12 @@ const participantStatusEl = document.getElementById('participantStatus');
 const participantBondEl = document.getElementById('participantBond');
 const participantSponsorEl = document.getElementById('participantSponsor');
 const participantNextEl = document.getElementById('participantNext');
+const participantBadgeEl = document.getElementById('participantBadge');
+const participantNextShortEl = document.getElementById('participantNextShort');
+const participationTabBtn = document.getElementById('participationTabBtn');
+const walletTabButtons = document.querySelectorAll('.wallet-tabs .tab-btn');
+const walletTabPanels = document.querySelectorAll('.wallet-tab-panel');
+const walletActivityLink = document.getElementById('walletActivityLink');
 const sponsorAddressInput = document.getElementById('sponsorAddressInput');
 const sponsorParticipantBtn = document.getElementById('sponsorParticipantBtn');
 const searchForm = document.getElementById('searchForm');
@@ -66,6 +101,8 @@ const startMiningBtn = document.getElementById('startMining');
 const stopMiningBtn = document.getElementById('stopMining');
 const viewBasicBtn = document.getElementById('viewBasic');
 const viewAdvancedBtn = document.getElementById('viewAdvanced');
+const blockTabButtons = document.querySelectorAll('.block-tabs .tab-btn');
+const blockTabPanels = document.querySelectorAll('.block-tab-panel');
 
 function shortHash(hash) {
   if (!hash) return '-';
@@ -80,7 +117,7 @@ function shortAddress(address) {
 function addressLink(address, label) {
   if (!address) return '-';
   const text = label || shortAddress(address);
-  return `<a class="addr-link" href="/?address=${address}" data-address="${address}">${text}</a>`;
+  return `<a class="addr-link" href="/address/${address}" data-address="${address}">${text}</a>`;
 }
 
 function formatNumber(value) {
@@ -106,6 +143,21 @@ function formatTokenAmount(microValue, decimals, maxDecimals = 4) {
   } catch {
     return '0';
   }
+}
+
+function walletAmountHtml(microValue, decimals) {
+  const amount = formatTokenAmount(microValue, decimals, 6);
+  return `<span class="sprg-amount"><img src="${SPRG_ICON}" alt="" class="sprg-icon" />${amount}</span>`;
+}
+
+function activityMeta(tx) {
+  if (tx.type === 'participant_reward') {
+    return { icon: PARTICIPATION_ICON, label: 'Participation reward' };
+  }
+  if (tx.type === 'holder_reward') {
+    return { icon: LOYAL_ICON, label: 'Holder reward' };
+  }
+  return { icon: TX_ICON, label: tx.from === walletState.address ? 'Sent' : 'Received' };
 }
 
 function parseTokenToMicro(value, decimals) {
@@ -223,6 +275,35 @@ function toDays(blocks, blockTimeSeconds) {
   return `${days.toFixed(1)} days`;
 }
 
+function formatRelativeTime(iso) {
+  if (!iso) return '-';
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  if (!Number.isFinite(then)) return '-';
+  const diff = Math.max(0, now - then);
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function copyToClipboard(text) {
+  if (!text) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text);
+    return;
+  }
+  const area = document.createElement('textarea');
+  area.value = text;
+  document.body.appendChild(area);
+  area.select();
+  document.execCommand('copy');
+  area.remove();
+}
+
 function tooltip(label, text) {
   return `${label}<span class="tooltip" title="${text}">i</span>`;
 }
@@ -252,7 +333,7 @@ async function fetchBlocks(page) {
 }
 
 async function fetchBlockByHeight(height) {
-  const res = await fetch(`/block/${height}`);
+  const res = await fetch(`/api/block/${height}`);
   if (!res.ok) return { error: res.status };
   try {
     return await res.json();
@@ -324,17 +405,26 @@ function renderStats(state) {
   const avgGas = `${state.averageGasFeeTokens ?? '0'} ${state.symbol}`;
 
   if (viewMode === 'advanced') {
-    chainStats.innerHTML = [
+    const sectionA = [
       { label: 'Latest Block', value: formatNumber(latestHeight) },
       { label: 'Latest Block Txs', value: formatNumber(state.latestBlock?.txCount ?? 0) },
       { label: 'Active Participants', value: formatNumber(state.activeParticipantCount ?? 0) },
-      { label: 'Registered Participants', value: formatNumber(state.totalRegisteredParticipants ?? 0) },
-      { label: 'Participant Window', value: formatNumber(state.ACTIVE_WINDOW_BLOCKS ?? 0) },
       { label: 'Mint (micro)', value: formatBigIntString(state.mintMicro) },
       {
         label: 'Mint Split (micro)',
         value: `P ${formatBigIntString(state.splitMicro?.participant)} | N ${formatBigIntString(state.splitMicro?.nodePool)} | T ${formatBigIntString(state.splitMicro?.treasury)} | H ${formatBigIntString(state.splitMicro?.holderPool)}`
+      }
+    ];
+    const sectionB = [
+      { label: 'Registered Participants', value: formatNumber(state.totalRegisteredParticipants ?? 0) },
+      {
+        label: 'Total Transactions',
+        value: formatNumber(state.totalTransactions ?? 0),
+        sub: `Avg. Gas: ${avgGas} (${formatBigIntString(state.baseFeeMicro)} micro/weight)`
       },
+      { label: 'Total Addresses', value: formatNumber(state.totalAddresses ?? 0) }
+    ];
+    const sectionC = [
       {
         label: 'Pools (micro)',
         value: `Node ${formatBigIntString(state.poolsMicro?.node)} | Holder ${formatBigIntString(state.poolsMicro?.holder)}`
@@ -344,20 +434,27 @@ function renderStats(state) {
         value: `${formatNumber(state.avgWindowBlocks ?? 0)} blocks`,
         sub: `Eligibility: >= ${formatTokenAmount(state.avgEligibilityMicro ?? '0', state.decimals ?? 6, 6)} ${state.symbol}`
       },
-      { label: 'Blocks Until Payout', value: formatNumber(state.blocksUntilPayout ?? 0) },
-      {
-        label: 'Total Transactions',
-        value: formatNumber(state.totalTransactions ?? 0),
-        sub: `Avg. Gas: ${avgGas} (${formatBigIntString(state.baseFeeMicro)} micro/weight)`
-      },
-      { label: 'Total Addresses', value: formatNumber(state.totalAddresses ?? 0) }
-    ].map((item) => `
-      <div class="stat">
-        <div class="stat-label">${item.label}</div>
-        <div class="stat-value">${item.value}</div>
-        ${item.sub ? `<div class="stat-sub">${item.sub}</div>` : ''}
+      { label: 'Blocks Until Payout', value: formatNumber(state.blocksUntilPayout ?? 0) }
+    ];
+    const renderSection = (title, items, muted = false) => `
+      <div class="stats-section ${muted ? 'muted-section' : ''}">
+        <div class="section-header">${title}</div>
+        <div class="stats-grid">
+          ${items.map((item) => `
+            <div class="stat">
+              <div class="stat-label">${item.label}</div>
+              <div class="stat-value">${item.value}</div>
+              ${item.sub ? `<div class="stat-sub">${item.sub}</div>` : ''}
+            </div>
+          `).join('')}
+        </div>
       </div>
-    `).join('');
+    `;
+    chainStats.innerHTML = [
+      renderSection('This Block', sectionA),
+      renderSection('Network Overview', sectionB),
+      renderSection('Reward Cycle', sectionC, true)
+    ].join('');
     return;
   }
 
@@ -374,7 +471,7 @@ function renderStats(state) {
     holder: formatTokenAmount(state.poolsMicro?.holder, decimals, 4)
   };
 
-  chainStats.innerHTML = [
+  const sectionA = [
     {
       label: 'Latest Block',
       value: formatNumber(latestHeight),
@@ -399,19 +496,12 @@ function renderStats(state) {
       label: 'Active Participants',
       value: formatNumber(state.activeParticipantCount ?? 0),
       sub: `Window: last ${formatNumber(state.ACTIVE_WINDOW_BLOCKS ?? 0)} blocks`
-    },
+    }
+  ];
+  const sectionB = [
     {
       label: 'Registered Participants',
       value: formatNumber(state.totalRegisteredParticipants ?? 0)
-    },
-    {
-      label: tooltip('Accumulated Rewards (Not Yet Paid)', 'Pools that accumulate until the 14‑day payout.'),
-      value: `${pools.node} ${state.symbol}`,
-      sub: `Holders pool: ${pools.holder} ${state.symbol}`
-    },
-    {
-      label: tooltip('Next Rewards Payout', 'Rewards are paid out every 14 days to reduce on‑chain noise.'),
-      value: `~${toDays(state.blocksUntilPayout ?? 0, state.blockTimeSeconds)} (${formatNumber(state.blocksUntilPayout ?? 0)} blocks)`
     },
     {
       label: tooltip('Average Transaction Fee', 'Fees adjust automatically with network activity.'),
@@ -425,14 +515,38 @@ function renderStats(state) {
       label: 'Total Addresses',
       value: formatNumber(state.totalAddresses ?? 0)
     }
-  ].map((item) => `
-    <div class="stat">
-      <div class="stat-label">${item.label}</div>
-      <div class="stat-value">${item.value}</div>
-      ${item.sub ? `<div class="stat-sub">${item.sub}</div>` : ''}
-      ${item.list ? `<div class="stat-list">${item.list.map(([k, v]) => `<span><strong>${k}</strong><span>${v}</span></span>`).join('')}</div>` : ''}
+  ];
+  const sectionC = [
+    {
+      label: tooltip('Accumulated Rewards (Not Yet Paid)', 'Pools that accumulate until the 14‑day payout.'),
+      value: `${pools.node} ${state.symbol}`,
+      sub: `Holders pool: ${pools.holder} ${state.symbol}`
+    },
+    {
+      label: tooltip('Next Rewards Payout', 'Rewards are paid out every 14 days to reduce on‑chain noise.'),
+      value: `~${toDays(state.blocksUntilPayout ?? 0, state.blockTimeSeconds)} (${formatNumber(state.blocksUntilPayout ?? 0)} blocks)`
+    }
+  ];
+  const renderSection = (title, items, muted = false) => `
+    <div class="stats-section ${muted ? 'muted-section' : ''}">
+      <div class="section-header">${title}</div>
+      <div class="stats-grid">
+        ${items.map((item) => `
+          <div class="stat">
+            <div class="stat-label">${item.label}</div>
+            <div class="stat-value">${item.value}</div>
+            ${item.sub ? `<div class="stat-sub">${item.sub}</div>` : ''}
+            ${item.list ? `<div class="stat-list">${item.list.map(([k, v]) => `<span><strong>${k}</strong><span>${v}</span></span>`).join('')}</div>` : ''}
+          </div>
+        `).join('')}
+      </div>
     </div>
-  `).join('');
+  `;
+  chainStats.innerHTML = [
+    renderSection('This Block', sectionA),
+    renderSection('Network Overview', sectionB),
+    renderSection('Reward Cycle', sectionC, true)
+  ].join('');
 }
 
 function renderBlockDetails(block) {
@@ -464,24 +578,18 @@ function renderBlockDetails(block) {
     </div>
   `;
 
-  const upgradeBadge = block.__upgradeActivated
-    ? `<div class="badge">Upgrade activated at this block</div>`
-    : '';
-
   const txs = normalizeTxList(block);
   const participantRewards = txs.filter((tx) => tx.type === 'participant_reward');
-  const participantRemainder = txs.find((tx) => tx.type === 'participant_remainder');
   const participantTotal = participantRewards.reduce((sum, tx) => {
     try {
       return sum + BigInt(tx.amountMicro || '0');
     } catch {
       return sum;
     }
-  }, 0n) + (participantRemainder ? BigInt(participantRemainder.amountMicro || '0') : 0n);
-  const participantSummary = `${participantRewards.length} recipients · ${formatTokenAmount(participantTotal.toString(), latestChainState?.decimals ?? 6, 6)} ${latestChainState?.symbol ?? ''}`;
+  }, 0n);
+  const participantSummary = `${participantRewards.length} recipients · ${walletAmountHtml(participantTotal.toString(), latestChainState?.decimals ?? 6)}`;
 
   blockDetailsBody.innerHTML = [
-    upgradeBadge,
     heightRow,
     ['Hash', block.hash],
     ['Prev Hash', block.prevHash],
@@ -546,54 +654,9 @@ function renderTxList(block) {
         event.preventDefault();
       }
       const txid = row.dataset.txid;
-      loadTxDetails(txid, true);
+      window.location.href = `/tx/${txid}`;
     });
   });
-}
-
-async function renderLatestTxs() {
-  if (!latestTxList) return;
-  const res = await fetchBlocks(1);
-  const blocks = res.blocks || [];
-  const txs = [];
-  for (const block of blocks) {
-    const list = normalizeTxList(block);
-    for (const tx of list) {
-      txs.push({ ...tx, blockHeight: block.height });
-      if (txs.length >= 12) break;
-    }
-    if (txs.length >= 12) break;
-  }
-  if (!txs.length) {
-    latestTxList.innerHTML = '<div class="detail-empty">No transactions yet.</div>';
-    return;
-  }
-  const decimals = latestChainState?.decimals ?? 6;
-  const symbol = latestChainState?.symbol ?? '';
-  latestTxList.innerHTML = `
-    <table class="tx-table">
-      <thead>
-        <tr>
-          <th>TxID</th>
-          <th>Block</th>
-          <th>From</th>
-          <th>To</th>
-          <th>Amount</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${txs.map((tx) => `
-          <tr>
-            <td><a class="tx-link" href="/tx/${tx.txid || tx.id}">${shortHash(tx.txid || tx.id)}</a></td>
-            <td>${tx.blockHeight}</td>
-            <td>${addressLink(tx.from, tx.from ? shortAddress(tx.from) : '-')}</td>
-            <td>${addressLink(tx.to, tx.to ? shortAddress(tx.to) : '-')}</td>
-            <td>${formatTokenAmount(tx.amountMicro, decimals, 6)} ${symbol}</td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-  `;
 }
 
 function renderBlockLoading(height) {
@@ -621,7 +684,7 @@ function renderTxDetails(tx, errorMessage) {
   const decimals = latestChainState?.decimals ?? 6;
   const symbol = latestChainState?.symbol ?? '';
   const blockLink = tx.blockHeight !== undefined && tx.blockHeight !== null
-    ? `<a class="tx-link" href="/?block=${tx.blockHeight}">${tx.blockHeight}</a>`
+    ? `<a class="tx-link" href="/block/${tx.blockHeight}">${tx.blockHeight}</a>`
     : '-';
   txDetailsBody.innerHTML = [
     ['TxID', tx.txid ?? tx.id ?? '-'],
@@ -640,6 +703,159 @@ function renderTxDetails(tx, errorMessage) {
     ['Block', blockLink],
     ['Timestamp', tx.timestamp ? new Date(tx.timestamp).toLocaleString('nl-NL') : '-']
   ].map(([label, value]) => `<div class="detail-row"><span>${label}</span><span>${value}</span></div>`).join('');
+}
+
+function renderTxPage(tx, state, errorMessage) {
+  if (!txSummaryEl || !txPartiesEl || !txAmountsEl || !txTechnicalBodyEl) return;
+  if (errorMessage) {
+    txSummaryEl.innerHTML = `<div class="detail-empty">${errorMessage}</div>`;
+    txPartiesEl.innerHTML = '';
+    txAmountsEl.innerHTML = '';
+    if (txParticipationEl) txParticipationEl.innerHTML = '';
+    if (txParticipationCard) txParticipationCard.style.display = 'none';
+    txTechnicalBodyEl.innerHTML = '';
+    return;
+  }
+  if (!tx) {
+    txSummaryEl.innerHTML = '<div class="detail-empty">Transaction not found.</div>';
+    txPartiesEl.innerHTML = '';
+    txAmountsEl.innerHTML = '';
+    if (txParticipationEl) txParticipationEl.innerHTML = '';
+    if (txParticipationCard) txParticipationCard.style.display = 'none';
+    txTechnicalBodyEl.innerHTML = '';
+    return;
+  }
+
+  const decimals = state?.decimals ?? 6;
+  const symbol = state?.symbol ?? '';
+  const type = (tx.type || 'transfer').toLowerCase();
+  const confirmed = tx.blockHeight !== undefined && tx.blockHeight !== null;
+  const statusLabel = confirmed ? 'Confirmed' : 'Pending';
+  const typeLabel = ['transfer', 'register_participant', 'unregister_participant', 'heartbeat', 'participant_reward', 'holder_reward', 'node_reward', 'treasury_reward'].includes(type)
+    ? type
+    : 'unknown';
+  const blockHeight = confirmed ? tx.blockHeight : null;
+  const currentHeight = Number(state?.latestHeight ?? 0);
+  const confirmations = confirmed ? Math.max(currentHeight - Number(blockHeight), 0) : '-';
+  const timeAbs = tx.timestamp ? new Date(tx.timestamp).toLocaleString('nl-NL') : '-';
+  const timeRel = tx.timestamp ? formatRelativeTime(tx.timestamp) : '-';
+  const blockLink = confirmed ? `<a class="tx-link" href="/block/${blockHeight}">${blockHeight}</a>` : 'Pending';
+
+  if (txBackLinkEl) {
+    txBackLinkEl.href = confirmed ? `/block/${blockHeight}` : '/';
+    txBackLinkEl.textContent = confirmed ? 'Back to Block' : 'Back to Explorer';
+  }
+
+  const txidValue = tx.txid ?? tx.id ?? '-';
+  const txidRow = `
+    <div class="detail-row">
+      <span>TxID</span>
+      <span class="detail-actions">
+        <span class="mono">${txidValue}</span>
+        <button class="copy-link" data-copy="${txidValue}">Copy</button>
+      </span>
+    </div>
+  `;
+
+  txSummaryEl.innerHTML = [
+    ['Status', `<span class="badge ${confirmed ? 'active' : 'inactive'}">${statusLabel}</span>`],
+    ['Type', `<span class="badge">${typeLabel}</span>`],
+    txidRow,
+    ['Block Height', blockLink],
+    ['Confirmations', confirmations],
+    ['Timestamp', `${timeAbs} · ${timeRel}`],
+    ['Tx Index', tx.txIndex ?? tx.index ?? '-']
+  ].map((item) => {
+    if (typeof item === 'string') return item;
+    const [label, value] = item;
+    return `<div class="detail-row"><span>${label}</span><span>${value}</span></div>`;
+  }).join('');
+
+  const parties = [];
+  const partyRow = (label, address) => `
+    <div class="detail-row">
+      <span>${label}</span>
+      <span class="detail-actions">
+        ${addressLink(address, shortAddress(address))}
+        <button class="copy-link" data-copy="${address}">Copy</button>
+      </span>
+    </div>
+  `;
+  if (tx.from) parties.push(partyRow('From', tx.from));
+  if (tx.to) parties.push(partyRow('To', tx.to));
+  if (tx.participant) parties.push(partyRow('Participant', tx.participant));
+  if (tx.sponsor) parties.push(partyRow('Sponsor', tx.sponsor));
+  txPartiesEl.innerHTML = parties.length
+    ? parties.join('')
+    : '<div class="detail-empty">No parties recorded.</div>';
+
+  const amount = `${formatTokenAmount(tx.amountMicro ?? '0', decimals, 6)} ${symbol}`.trim();
+  const fee = `${formatTokenAmount(tx.feeMicro ?? '0', decimals, 6)} ${symbol}`.trim();
+  const amountRows = [];
+  if (type === 'transfer') {
+    amountRows.push(['Amount', amount]);
+    amountRows.push(['Fee paid', fee]);
+    try {
+      const total = BigInt(tx.amountMicro || '0') + BigInt(tx.feeMicro || '0');
+      amountRows.push(['Total debited', `${formatTokenAmount(total.toString(), decimals, 6)} ${symbol}`.trim()]);
+    } catch {
+      amountRows.push(['Total debited', '-']);
+    }
+  } else if (type.endsWith('_reward')) {
+    amountRows.push(['Reward amount', amount]);
+    const source = type === 'participant_reward'
+      ? 'Participation pool'
+      : type === 'holder_reward'
+        ? 'Holder pool'
+        : type === 'node_reward'
+          ? 'Node pool'
+          : 'Treasury';
+    amountRows.push(['Reward source', source]);
+  } else {
+    amountRows.push(['Amount', amount]);
+    amountRows.push(['Fee paid', fee]);
+  }
+  txAmountsEl.innerHTML = amountRows.map(([label, value]) => `<div class="detail-row"><span>${label}</span><span>${value}</span></div>`).join('');
+
+  if (txParticipationEl) {
+    const participationRows = [];
+    if (type === 'register_participant') {
+      participationRows.push(['Bond locked', '50,000 SPRG']);
+    }
+    if (type === 'unregister_participant') {
+      participationRows.push(['Bond released', 'Yes']);
+    }
+    if (type === 'heartbeat' || type === 'register_participant' || type === 'unregister_participant') {
+      participationRows.push(['LastSeen update', 'Yes']);
+    }
+    if (participationRows.length) {
+      txParticipationEl.innerHTML = participationRows.map(([label, value]) => `<div class="detail-row"><span>${label}</span><span>${value}</span></div>`).join('');
+      if (txParticipationCard) txParticipationCard.style.display = '';
+    } else {
+      txParticipationEl.innerHTML = '<div class="detail-empty">No participation impact.</div>';
+      if (txParticipationCard) txParticipationCard.style.display = 'none';
+    }
+  }
+
+  txTechnicalBodyEl.innerHTML = [
+    ['Nonce', tx.nonce ?? '-'],
+    ['Chain ID', tx.chainId ?? state?.chainId ?? '-'],
+    ['Protocol Version', state?.protocolVersion ?? '-'],
+    ['Economics Version', state?.economicsVersion ?? '-'],
+    ['Memo', tx.memo ? tx.memo : '-'],
+    ['Signature present', tx.signatureHex ? 'Yes' : 'No']
+  ].map(([label, value]) => `<div class="detail-row"><span>${label}</span><span>${value}</span></div>`).join('');
+
+  document.querySelectorAll('[data-copy]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const value = btn.getAttribute('data-copy');
+      copyToClipboard(value);
+      btn.textContent = 'Copied';
+      setTimeout(() => {
+        btn.textContent = 'Copy';
+      }, 1200);
+    });
+  });
 }
 
 async function loadTxDetails(txid, updateUrl = false) {
@@ -759,6 +975,165 @@ function renderAddressTxs(address, list) {
   `;
 }
 
+function renderAddressPage(address, stats, txs, state) {
+  if (!addressHeaderEl || !addressOverviewEl || !addressDetailsEl) return;
+  const decimals = state?.decimals ?? 6;
+  const symbol = state?.symbol ?? '';
+  const shortAddr = shortAddress(address);
+  const badges = [];
+  if (state?.treasuryAddress && address === state.treasuryAddress) badges.push('<span class="badge">Treasury</span>');
+  if (state?.proposerAddress && address === state.proposerAddress) badges.push('<span class="badge">Proposer</span>');
+  const participantStatus = stats.participant ? stats.participant.status : 'Not registered';
+  const participantBadgeClass = participantStatus === 'active'
+    ? 'badge active'
+    : participantStatus === 'inactive'
+      ? 'badge inactive'
+      : 'badge';
+  badges.push(`<span class="${participantBadgeClass}">Participant: ${participantStatus}</span>`);
+
+  addressHeaderEl.innerHTML = `
+    <div class="detail-row">
+      <span>Address</span>
+      <span class="detail-actions">
+        <span class="mono" title="${address}">${shortAddr}</span>
+        <button class="copy-link" data-copy="${address}">Copy</button>
+        ${badges.join(' ')}
+      </span>
+    </div>
+  `;
+
+  const balanceDisplay = `${formatTokenAmount(stats.balanceMicro ?? '0', decimals, 6)} ${symbol}`.trim();
+  const txCount = stats.txCount ?? 0;
+  const firstSeen = stats.firstSeen ? new Date(stats.firstSeen) : null;
+  const lastSeen = stats.lastSeen ? new Date(stats.lastSeen) : null;
+  const firstSeenLabel = firstSeen ? `${firstSeen.toLocaleString('nl-NL')} · ${formatRelativeTime(stats.firstSeen)}` : '-';
+  const lastSeenLabel = lastSeen ? `${lastSeen.toLocaleString('nl-NL')} · ${formatRelativeTime(stats.lastSeen)}` : '-';
+  const nonce = stats.nonce ?? '0';
+  const avgBalanceDisplay = `${formatTokenAmount(stats.avgBalanceMicro ?? '0', decimals, 6)} ${symbol}`.trim();
+  const avgEligible = stats.avgEligible ? 'Yes' : 'No';
+
+  addressOverviewEl.innerHTML = [
+    { label: 'Balance', value: balanceDisplay },
+    { label: 'Total Transactions', value: formatNumber(txCount) },
+    { label: 'On-chain since', value: firstSeenLabel },
+    { label: 'Last seen', value: lastSeenLabel },
+    { label: 'Nonce', value: nonce },
+    { label: '14-day avg balance', value: avgBalanceDisplay },
+    { label: 'Eligible holder', value: avgEligible }
+  ].map((item) => `
+    <div class="stat">
+      <div class="stat-label">${item.label}</div>
+      <div class="stat-value">${item.value}</div>
+    </div>
+  `).join('');
+
+  if (addressParticipationCard && addressParticipationEl) {
+    if (stats.participant) {
+      const lastSeen = Number(stats.participant.lastSeenHeight ?? 0);
+      const latestHeight = Number(state?.latestHeight ?? 0);
+      const windowBlocks = Number(state?.ACTIVE_WINDOW_BLOCKS ?? 5100);
+      const remaining = Math.max(0, windowBlocks - (latestHeight - lastSeen));
+      const days = ((remaining * Number(state?.blockTimeSeconds ?? 51)) / 86400).toFixed(1);
+      addressParticipationEl.innerHTML = [
+        ['Participant status', stats.participant.status],
+        ['Bond locked', `${formatTokenAmount(stats.participant.bondMicro || '0', decimals, 2)} ${symbol}`],
+        ['Sponsor', stats.participant.sponsor ? addressLink(stats.participant.sponsor, shortAddress(stats.participant.sponsor)) : '-'],
+        ['Sponsored participants', `${stats.sponsoredActiveCount ?? 0} / 10`],
+        ['Next activity due', `${remaining} blocks (~${days} days)`]
+      ].map(([label, value]) => `<div class="detail-row"><span>${label}</span><span>${value}</span></div>`).join('');
+      addressParticipationCard.style.display = '';
+    } else {
+      addressParticipationEl.innerHTML = '<div class="detail-empty">Not registered.</div>';
+      addressParticipationCard.style.display = '';
+    }
+  }
+
+  addressDetailsEl.innerHTML = [
+    ['Full address', address],
+    ['Chain ID', state?.chainId ?? '-']
+  ].map(([label, value]) => `<div class="detail-row"><span>${label}</span><span>${value}</span></div>`).join('');
+
+  document.querySelectorAll('[data-copy]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const value = btn.getAttribute('data-copy');
+      copyToClipboard(value);
+      btn.textContent = 'Copied';
+      setTimeout(() => {
+        btn.textContent = 'Copy';
+      }, 1200);
+    });
+  });
+
+  renderAddressTxPage(address, txs, state);
+}
+
+function filterAddressTxs(list, address) {
+  if (addressTxFilter === 'all') return list;
+  if (addressTxFilter === 'transfer') return list.filter((tx) => tx.type === 'transfer');
+  if (addressTxFilter === 'reward') return list.filter((tx) => tx.type && tx.type.endsWith('_reward'));
+  if (addressTxFilter === 'participation') {
+    return list.filter((tx) => ['register_participant', 'unregister_participant', 'heartbeat'].includes(tx.type));
+  }
+  return list;
+}
+
+function renderAddressTxPage(address, list, state) {
+  if (!addressTxListPage) return;
+  const filtered = filterAddressTxs(list, address);
+  if (!filtered.length) {
+    addressTxListPage.innerHTML = '<div class="detail-empty">No transactions yet.</div>';
+    return;
+  }
+  const decimals = state?.decimals ?? 6;
+  const symbol = state?.symbol ?? '';
+  addressTxListPage.innerHTML = `
+    <table class="tx-table">
+      <thead>
+        <tr>
+          <th>Block</th>
+          <th>Time</th>
+          <th>Type</th>
+          <th>Direction</th>
+          <th>Counterparty</th>
+          <th>Amount</th>
+          <th>Fee</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filtered.map((tx) => {
+          const dir = tx.type === 'transfer'
+            ? (tx.to === address ? 'Received' : 'Sent')
+            : '-';
+          const counterparty = tx.type === 'transfer'
+            ? (tx.to === address ? tx.from : tx.to)
+            : '-';
+          return `
+            <tr data-txid="${tx.txid}">
+              <td><a class="block-link" href="/block/${tx.blockHeight}">${tx.blockHeight}</a></td>
+              <td>${formatRelativeTime(tx.timestamp)}</td>
+              <td><span class="badge">${tx.type ?? 'transfer'}</span></td>
+              <td>${dir}</td>
+              <td>${counterparty && counterparty !== '-' ? addressLink(counterparty, shortAddress(counterparty)) : '-'}</td>
+              <td>${formatTokenAmount(tx.amountMicro, decimals, 6)} ${symbol}</td>
+              <td>${formatTokenAmount(tx.feeMicro, decimals, 6)} ${symbol}</td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+
+  addressTxListPage.querySelectorAll('tr[data-txid]').forEach((row) => {
+    row.addEventListener('click', () => {
+      const txid = row.dataset.txid;
+      if (txid) window.location.href = `/tx/${txid}`;
+    });
+  });
+  addressTxListPage.querySelectorAll('a').forEach((link) => {
+    link.addEventListener('click', (event) => event.stopPropagation());
+  });
+}
+
 async function loadAddressDetails(address, updateUrl = false) {
   if (!address) {
     renderAddressDetails(null);
@@ -799,7 +1174,7 @@ function renderBlocks(blocks) {
   blocksTable.querySelectorAll('tr').forEach((row) => {
     row.addEventListener('click', () => {
       const height = Number(row.dataset.height);
-      loadBlockDetails(height);
+      window.location.href = `/block/${height}`;
     });
   });
 }
@@ -906,7 +1281,6 @@ async function refreshAll() {
     renderStats(state);
     await refreshBlocks();
     await updateMiningStatus();
-    await renderLatestTxs();
 
     const txid = getTxIdFromPath();
     if (txid) {
@@ -951,14 +1325,12 @@ function handleSearch(query) {
   if (/^\d+$/.test(value)) {
     const height = Number(value);
     if (Number.isFinite(height)) {
-      updateUrlWithBlock(height);
-      loadBlockDetails(height);
+      window.location.href = `/block/${height}`;
       return;
     }
   }
   if (value.startsWith('spg_')) {
-    updateUrlWithAddress(value);
-    loadAddressDetails(value, true);
+    window.location.href = `/address/${value}`;
     return;
   }
   updateUrlWithTx(value);
@@ -976,7 +1348,7 @@ async function refreshWalletContext() {
   const initialFeeTokens = formatTokenAmount(initialFeeMicro.toString(), decimals, 6);
   if (txFeeInput && !txFeeInput.value) txFeeInput.value = initialFeeTokens;
   if (txFeeHint) {
-    txFeeHint.textContent = `Minimum fee: ${formatTokenAmount(minFeeMicro.toString(), decimals, 6)} ${latestChainState.symbol ?? ''}`;
+    txFeeHint.innerHTML = `Minimum fee: ${walletAmountHtml(minFeeMicro.toString(), decimals)}`;
   }
 }
 
@@ -986,7 +1358,7 @@ function maybeLoadBlockFromQuery() {
   if (!blockParam) return;
   const height = Number(blockParam);
   if (!Number.isFinite(height)) return;
-  loadBlockDetails(height);
+  window.location.href = `/block/${height}`;
 }
 
 function maybeLoadAddressFromQuery() {
@@ -1000,6 +1372,11 @@ function getTxIdFromPath() {
   return match ? match[1] : null;
 }
 
+function getAddressFromPath() {
+  const match = window.location.pathname.match(/^\/address\/(spg_[A-Za-z0-9]+)$/);
+  return match ? match[1] : null;
+}
+
 function getAddressFromQuery() {
   const params = new URLSearchParams(window.location.search);
   return params.get('address');
@@ -1007,6 +1384,12 @@ function getAddressFromQuery() {
 
 function updateUrlWithBlock(height) {
   const url = new URL(window.location.href);
+  if (window.location.pathname.startsWith('/block/')) {
+    url.pathname = `/block/${height}`;
+    url.search = '';
+    history.replaceState({}, '', url.toString());
+    return;
+  }
   url.pathname = '/';
   url.searchParams.set('block', height);
   history.replaceState({}, '', url.toString());
@@ -1021,15 +1404,15 @@ function updateUrlWithTx(txid) {
 
 function updateUrlWithAddress(address) {
   const url = new URL(window.location.href);
-  url.pathname = '/';
-  url.searchParams.set('address', address);
+  url.pathname = `/address/${address}`;
+  url.search = '';
   history.pushState({}, '', url.toString());
 }
 
 function copyBlockLink(height) {
   const url = new URL(window.location.href);
-  url.pathname = '/';
-  url.searchParams.set('block', height);
+  url.pathname = `/block/${height}`;
+  url.search = '';
   const text = url.toString();
 
   if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -1041,8 +1424,8 @@ function copyBlockLink(height) {
 
 function copyAddressLink(address) {
   const url = new URL(window.location.href);
-  url.pathname = '/';
-  url.searchParams.set('address', address);
+  url.pathname = `/address/${address}`;
+  url.searchParams.delete('address');
   const text = url.toString();
 
   if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -1162,9 +1545,9 @@ function renderWallet() {
     walletPrivateKeyEl.textContent = '-';
     walletBalanceEl.textContent = '-';
     walletNonceEl.textContent = '-';
-    walletBalanceHintEl.textContent = 'Waiting for block rewards…';
+    if (walletBalanceHintEl) walletBalanceHintEl.textContent = 'Waiting for block rewards…';
     setWalletUiState(false);
-    walletBalanceHintEl.textContent = 'Waiting for block rewards…';
+    if (walletBalanceHintEl) walletBalanceHintEl.textContent = 'Waiting for block rewards…';
     walletPublicKeyEl.classList.add('hidden');
     walletPrivateKeyEl.classList.add('hidden');
     if (togglePublicKeyBtn) togglePublicKeyBtn.textContent = 'Show';
@@ -1172,6 +1555,7 @@ function renderWallet() {
     return;
   }
   walletAddressEl.textContent = walletState.address;
+  if (walletAddressReceiveEl) walletAddressReceiveEl.textContent = walletState.address;
   walletPublicKeyEl.textContent = walletState.publicKeyHex;
   walletPrivateKeyEl.textContent = walletState.privateKeyHex;
   walletPublicKeyEl.classList.add('hidden');
@@ -1179,6 +1563,9 @@ function renderWallet() {
   if (togglePublicKeyBtn) togglePublicKeyBtn.textContent = 'Show';
   if (togglePrivateKeyBtn) togglePrivateKeyBtn.textContent = 'Reveal';
   setWalletUiState(true);
+  if (walletActivityLink) {
+    walletActivityLink.href = '/wallet#transactions';
+  }
 }
 
 async function refreshWalletState() {
@@ -1186,32 +1573,61 @@ async function refreshWalletState() {
   try {
     const stats = await fetch(`/api/address/${walletState.address}`).then((r) => r.json());
     const decimals = latestChainState?.decimals ?? 6;
-    walletBalanceEl.textContent = `${formatTokenAmount(stats.balanceMicro, decimals, 6)} ${latestChainState?.symbol ?? ''}`;
-    walletNonceEl.textContent = stats.nonce ?? '0';
-    const balanceValue = BigInt(stats.balanceMicro || '0');
-    walletBalanceHintEl.textContent = balanceValue === 0n ? 'Waiting for block rewards…' : 'Balance updated';
+    const balanceValue = formatTokenAmount(stats.balanceMicro, decimals, 6);
+    const symbol = latestChainState?.symbol ?? '';
+    const balanceText = `${balanceValue} ${symbol}`.trim();
+    if (walletBalanceEl) walletBalanceEl.textContent = balanceText;
+    if (walletBalanceOverviewEl) walletBalanceOverviewEl.innerHTML = walletAmountHtml(stats.balanceMicro, decimals);
+    if (walletNonceEl) walletNonceEl.textContent = stats.nonce ?? '0';
+    const balanceValueMicro = BigInt(stats.balanceMicro || '0');
+    if (walletBalanceHintEl) {
+      walletBalanceHintEl.textContent = balanceValueMicro === 0n ? 'Waiting for block rewards…' : 'Balance updated';
+    }
     if (participantStatusEl) {
       const participant = stats.participant;
       if (participant) {
         participantStatusEl.textContent = participant.status === 'active' ? 'Active' : 'Inactive';
-        participantBondEl.textContent = `${formatTokenAmount(participant.bondMicro, decimals, 2)} ${latestChainState?.symbol ?? ''}`;
-        participantSponsorEl.textContent = participant.sponsor || '-';
+        if (participantBadgeEl) {
+          participantBadgeEl.textContent = participant.status === 'active' ? 'Active' : 'Inactive';
+          participantBadgeEl.classList.toggle('active', participant.status === 'active');
+          participantBadgeEl.classList.toggle('inactive', participant.status !== 'active');
+        }
+        if (participantBondEl) {
+          participantBondEl.innerHTML = walletAmountHtml(participant.bondMicro, decimals);
+        }
+        if (participantSponsorEl) participantSponsorEl.textContent = participant.sponsor || '-';
         const latestHeight = Number(latestChainState?.latestHeight ?? 0);
         const lastSeen = Number(participant.lastSeenHeight ?? 0);
         const windowBlocks = Number(latestChainState?.ACTIVE_WINDOW_BLOCKS ?? 5100);
         const remaining = Math.max(0, windowBlocks - (latestHeight - lastSeen));
         const days = ((remaining * Number(latestChainState?.blockTimeSeconds || 51)) / 86400).toFixed(1);
-        participantNextEl.textContent = `${remaining} blocks (~${days} days)`;
+        if (participantNextEl) participantNextEl.textContent = `${remaining} blocks (~${days} days)`;
+        if (participantNextShortEl) {
+          participantNextShortEl.textContent = `Next activity: ${remaining} blocks`;
+        }
+        if (participationTabBtn) {
+          participationTabBtn.classList.toggle('highlight', participant.status !== 'active');
+        }
       } else {
         participantStatusEl.textContent = '-';
-        participantBondEl.textContent = '-';
-        participantSponsorEl.textContent = '-';
-        participantNextEl.textContent = '-';
+        if (participantBadgeEl) {
+          participantBadgeEl.textContent = '-';
+          participantBadgeEl.classList.remove('active', 'inactive');
+        }
+        if (participantBondEl) participantBondEl.textContent = '-';
+        if (participantSponsorEl) participantSponsorEl.textContent = '-';
+        if (participantNextEl) participantNextEl.textContent = '-';
+        if (participantNextShortEl) {
+          participantNextShortEl.textContent = 'Next activity: -';
+        }
+        if (participationTabBtn) {
+          participationTabBtn.classList.add('highlight');
+        }
       }
     }
     maybeAutoHeartbeat(stats);
   } catch {
-    walletBalanceHintEl.textContent = 'Unable to refresh wallet state.';
+    if (walletBalanceHintEl) walletBalanceHintEl.textContent = 'Unable to refresh wallet state.';
   }
 }
 
@@ -1343,7 +1759,7 @@ async function pollTxMined(txid) {
     if (res.ok) {
       const tx = await res.json();
       const height = tx.blockHeight !== undefined && tx.blockHeight !== null ? tx.blockHeight : '?';
-      sendTxStatus.innerHTML = `Mined in block <a class="tx-link" href="/?block=${height}">${height}</a> · <a class="tx-link" href="/tx/${txid}">${txid}</a>`;
+      sendTxStatus.innerHTML = `Mined in block <a class="tx-link" href="/block/${height}">${height}</a> · <a class="tx-link" href="/tx/${txid}">${txid}</a>`;
       refreshWalletState();
       renderWalletActivity();
       return;
@@ -1354,8 +1770,8 @@ async function pollTxMined(txid) {
 }
 
 async function renderWalletActivity() {
-  if (!walletState || !walletActivity) return;
-  const res = await fetch(`/api/blocks?page=1&limit=10`).then((r) => r.json());
+  if (!walletState || (!walletActivity && !walletActivityOverview)) return;
+  const res = await fetch(`/api/blocks?page=1&limit=25`).then((r) => r.json());
   const blocks = res.blocks || [];
   const entries = [];
   for (const block of blocks) {
@@ -1366,34 +1782,109 @@ async function renderWalletActivity() {
       }
     }
   }
+  walletActivityEntries = entries;
   if (!entries.length) {
-    walletActivity.innerHTML = '<div class="detail-empty">No activity yet.</div>';
+    if (walletActivity) walletActivity.innerHTML = '<div class="detail-empty">No activity yet.</div>';
+    if (walletActivityOverview) walletActivityOverview.innerHTML = '<div class="detail-empty">No activity yet.</div>';
+    if (walletActivityPager) walletActivityPager.innerHTML = '';
     return;
   }
   const decimals = latestChainState?.decimals ?? 6;
-  const symbol = latestChainState?.symbol ?? '';
-  walletActivity.innerHTML = `
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(entries.length / pageSize));
+  if (walletActivityPage > totalPages) walletActivityPage = totalPages;
+  const start = (walletActivityPage - 1) * pageSize;
+  const pageRows = entries.slice(start, start + pageSize);
+  const rows = pageRows.map((tx) => {
+    const meta = activityMeta(tx);
+    const amountHtml = walletAmountHtml(tx.amountMicro, decimals);
+    return `
+      <tr data-txid="${tx.txid || tx.id}">
+        <td>
+          <div class="activity-cell">
+            <img src="${meta.icon}" alt="" class="activity-icon" />
+            <span>${meta.label}</span>
+          </div>
+        </td>
+        <td>${tx.blockHeight}</td>
+        <td>${amountHtml}</td>
+      </tr>
+    `;
+  }).join('');
+  const tableMarkup = `
     <table class="tx-table">
       <thead>
         <tr>
-          <th>Tx</th>
-          <th>Block</th>
+          <th>Type</th>
+          <th>Height</th>
           <th>Amount</th>
-          <th>Direction</th>
         </tr>
       </thead>
       <tbody>
-        ${entries.slice(0, 6).map((tx) => `
-          <tr>
-            <td><a class="tx-link" href="/tx/${tx.txid || tx.id}">${shortHash(tx.txid || tx.id)}</a></td>
-            <td>${tx.blockHeight}</td>
-            <td>${formatTokenAmount(tx.amountMicro, decimals, 6)} ${symbol}</td>
-            <td>${tx.from === walletState.address ? 'Sent' : 'Received'}</td>
-          </tr>
-        `).join('')}
+        ${rows}
       </tbody>
     </table>
   `;
+  if (walletActivity) walletActivity.innerHTML = tableMarkup;
+  if (walletActivityOverview) {
+    const overviewRows = entries.slice(0, 10).map((tx) => {
+      const meta = activityMeta(tx);
+      const amountHtml = walletAmountHtml(tx.amountMicro, decimals);
+      return `
+        <tr data-txid="${tx.txid || tx.id}">
+          <td>
+            <div class="activity-cell">
+              <img src="${meta.icon}" alt="" class="activity-icon" />
+              <span>${meta.label}</span>
+            </div>
+          </td>
+          <td>${tx.blockHeight}</td>
+          <td>${amountHtml}</td>
+        </tr>
+      `;
+    }).join('');
+    walletActivityOverview.innerHTML = `
+      <table class="tx-table">
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Height</th>
+            <th>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${overviewRows}
+        </tbody>
+      </table>
+    `;
+  }
+  if (walletActivityPager) {
+    walletActivityPager.innerHTML = `
+      <button ${walletActivityPage <= 1 ? 'disabled' : ''} data-action="prev">Prev</button>
+      <span>${walletActivityPage} / ${totalPages}</span>
+      <button ${walletActivityPage >= totalPages ? 'disabled' : ''} data-action="next">Next</button>
+    `;
+    walletActivityPager.querySelectorAll('button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const action = btn.dataset.action;
+        if (action === 'prev' && walletActivityPage > 1) walletActivityPage -= 1;
+        if (action === 'next' && walletActivityPage < totalPages) walletActivityPage += 1;
+        renderWalletActivity();
+      });
+    });
+  }
+
+  const attachRowClicks = (container) => {
+    if (!container) return;
+    container.querySelectorAll('tr[data-txid]').forEach((row) => {
+      row.addEventListener('click', () => {
+        const txid = row.dataset.txid;
+        if (txid) window.location.href = `/tx/${txid}`;
+      });
+    });
+  };
+  attachRowClicks(walletActivity);
+  attachRowClicks(walletActivityOverview);
 }
 
 function maybeAutoHeartbeat(stats) {
@@ -1702,13 +2193,87 @@ if (autoHeartbeatToggle) {
     saveAutoHeartbeatSetting(autoHeartbeatToggle.checked);
   });
 }
+if (walletTabButtons && walletTabPanels) {
+  walletTabButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      if (!tab) return;
+      walletTabButtons.forEach((b) => b.classList.toggle('active', b === btn));
+      walletTabPanels.forEach((panel) => {
+        panel.classList.toggle('active', panel.dataset.tabPanel === tab);
+      });
+    });
+  });
+}
+
+if (blockTabButtons && blockTabPanels) {
+  blockTabButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      if (!tab) return;
+      blockTabButtons.forEach((b) => b.classList.toggle('active', b === btn));
+      blockTabPanels.forEach((panel) => {
+        panel.classList.toggle('active', panel.dataset.tabPanel === tab);
+      });
+    });
+  });
+}
+
+if (walletActivityLink) {
+  walletActivityLink.addEventListener('click', (event) => {
+    event.preventDefault();
+    const target = Array.from(walletTabButtons || []).find((btn) => btn.dataset.tab === 'transactions');
+    if (target) target.click();
+  });
+}
+
+if (addressFilterTabs && addressFilterTabs.length) {
+  addressFilterTabs.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const filter = btn.dataset.filter;
+      if (!filter) return;
+      addressTxFilter = filter;
+      addressFilterTabs.forEach((b) => b.classList.toggle('active', b === btn));
+      renderAddressTxPage(getAddressFromPath(), addressTxEntries, latestChainState);
+    });
+  });
+}
+
+if (addressLoadMoreBtn) {
+  addressLoadMoreBtn.addEventListener('click', () => {
+    const address = getAddressFromPath();
+    addressTxLimit += 25;
+    fetchAddressTxs(address, addressTxLimit).then((txsRes) => {
+      addressTxEntries = txsRes?.txs || [];
+      renderAddressTxPage(address, addressTxEntries, latestChainState);
+    });
+  });
+}
+
+if (copyAddressBtn) {
+  copyAddressBtn.addEventListener('click', async () => {
+    if (!walletState) return;
+    try {
+      await navigator.clipboard.writeText(walletState.address);
+      copyAddressBtn.textContent = 'Copied';
+      setTimeout(() => {
+        copyAddressBtn.textContent = 'Copy address';
+      }, 1200);
+    } catch {
+      copyAddressBtn.textContent = 'Copy failed';
+      setTimeout(() => {
+        copyAddressBtn.textContent = 'Copy address';
+      }, 1200);
+    }
+  });
+}
 document.addEventListener('click', (event) => {
   const target = event.target;
-  if (!target || !target.classList || !target.classList.contains('addr-link')) return;
-  const address = target.dataset.address;
-  if (!address) return;
+  if (!target || !target.classList || !target.classList.contains('tx-link')) return;
+  const href = target.getAttribute('href');
+  if (!href || !href.startsWith('/tx/')) return;
   event.preventDefault();
-  loadAddressDetails(address, true);
+  window.location.href = href;
 });
 window.addEventListener('popstate', () => {
   const txid = getTxIdFromPath();
@@ -1735,6 +2300,61 @@ if (isExplorerPage) {
   startAutoRefresh();
   maybeLoadBlockFromQuery();
   maybeLoadAddressFromQuery();
+}
+
+if (window.location.pathname.startsWith('/block/')) {
+  const match = window.location.pathname.match(/^\/block\/(\d+)/);
+  if (match) {
+    fetchState().then((state) => {
+      latestChainState = state;
+      loadBlockDetails(Number(match[1]));
+    });
+  }
+}
+
+if (window.location.pathname.startsWith('/tx/')) {
+  const match = window.location.pathname.match(/^\/tx\/([a-fA-F0-9]+)/);
+  if (match) {
+    Promise.all([fetchState(), fetchTxById(match[1])]).then(([state, tx]) => {
+      latestChainState = state;
+      if (!tx || tx.error === 404) {
+        renderTxPage(null, state, 'Transaction not found.');
+        return;
+      }
+      if (tx.error) {
+        renderTxPage(null, state, 'Unable to load transaction.');
+        return;
+      }
+      renderTxPage(tx, state);
+    });
+  }
+}
+
+if (window.location.pathname.startsWith('/address/')) {
+  const match = window.location.pathname.match(/^\/address\/(spg_[A-Za-z0-9]+)/);
+  if (match) {
+    const addr = match[1];
+    Promise.all([fetchState(), fetchAddressStats(addr), fetchAddressTxs(addr, addressTxLimit)]).then(([state, stats, txsRes]) => {
+      latestChainState = state;
+      const list = txsRes?.txs || [];
+      addressTxEntries = list;
+      const safeStats = stats?.error
+        ? {
+            address: addr,
+            balanceMicro: '0',
+            avgBalanceMicro: '0',
+            avgEligible: false,
+            nonce: '0',
+            txCount: 0,
+            firstSeen: null,
+            lastSeen: null,
+            participant: null,
+            sponsoredActiveCount: 0
+          }
+        : stats;
+      renderAddressPage(addr, safeStats, list, state);
+    });
+  }
 }
 
 if (isWalletPage) {

@@ -543,6 +543,7 @@ function createBlockchain(config, mempool) {
           if (tx.from !== address && tx.to !== address) continue;
           items.push({
             txid: tx.txid ?? tx.id,
+            type: tx.type ?? 'transfer',
             from: tx.from || null,
             to: tx.to || null,
             amountMicro: tx.amountMicro ?? tx.amountBaseUnits ?? '0',

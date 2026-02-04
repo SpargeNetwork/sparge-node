@@ -20,10 +20,6 @@
       <a href="https://spargenetwork.github.io/sparge-docs/" class="nav-link" target="_blank" rel="noreferrer">Docs</a>
     </nav>
     <div class="header-actions">
-      <form id="searchForm" class="search">
-        <input id="searchInput" type="text" placeholder="Search block / tx / address" />
-        <button class="btn ghost" type="submit">Search</button>
-      </form>
       <div class="toggle">
         <button id="viewBasic" class="btn chip active">Basic</button>
         <button id="viewAdvanced" class="btn chip">Advanced / Protocol</button>
@@ -42,16 +38,14 @@
         <div class="panel-body" id="genesisPanel"></div>
       </div>
     </section>
+    <section class="search-panel">
+      <form id="searchForm" class="search">
+        <input id="searchInput" type="text" placeholder="Search block / tx / address" />
+        <button class="btn ghost" type="submit">Search</button>
+      </form>
+    </section>
     <section class="stats" id="chainStats"></section>
 
-    <section class="panel">
-      <div class="panel-header">
-        <h2>Latest Transactions</h2>
-      </div>
-      <div class="tx-list" id="latestTxList">
-        <div class="detail-empty">Loading latest transactions…</div>
-      </div>
-    </section>
     <section class="panel">
       <div class="panel-header">
         <h2>Blocks</h2>
@@ -76,46 +70,6 @@
       <div class="panel-footer" id="pagerBottom"></div>
     </section>
 
-    <section class="panel" id="blockDetails">
-      <div class="panel-header">
-        <h2>Block details</h2>
-        <div class="toast" id="copyToast">Copied!</div>
-      </div>
-      <div class="details-grid" id="blockDetailsBody">
-        <div class="detail-empty">Selecteer een block om details te bekijken.</div>
-      </div>
-      <div class="panel-subheader">
-        <h3>Transactions</h3>
-      </div>
-      <div class="tx-list" id="blockTxList">
-        <div class="detail-empty">Selecteer een block om transacties te bekijken.</div>
-      </div>
-    </section>
-
-    <section class="panel" id="txDetailsPanel">
-      <div class="panel-header">
-        <h2>Transaction</h2>
-      </div>
-      <div class="details-grid" id="txDetailsBody">
-        <div class="detail-empty">Selecteer een transactie om details te bekijken.</div>
-      </div>
-    </section>
-
-    <section class="panel" id="addressDetailsPanel">
-      <div class="panel-header">
-        <h2>Address</h2>
-        <div class="toast" id="addressCopyToast">Copied!</div>
-      </div>
-      <div class="details-grid" id="addressDetailsBody">
-        <div class="detail-empty">Selecteer een address om details te bekijken.</div>
-      </div>
-      <div class="panel-subheader">
-        <h3>Recent Transactions</h3>
-      </div>
-      <div class="tx-list" id="addressTxList">
-        <div class="detail-empty">Geen transacties beschikbaar.</div>
-      </div>
-    </section>
   </main>
 
   <script src="/app.js"></script>

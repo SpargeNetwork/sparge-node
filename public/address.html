@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sparge Address</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <a class="brand" href="/">
+      <img src="/assets/sparge_logo.png" alt="Sparge logo" class="logo-img" />
+      <div class="title">Sparge</div>
+    </a>
+    <nav class="top-nav">
+      <a href="/" class="nav-link active">Explorer</a>
+      <a href="/wallet" class="nav-link">Wallet</a>
+      <a href="https://spargenetwork.github.io/sparge-docs/" class="nav-link" target="_blank" rel="noreferrer">Docs</a>
+    </nav>
+    <div class="header-actions"></div>
+  </header>
+
+  <main>
+    <section class="panel" id="addressPage">
+      <div class="panel-header">
+        <div>
+          <a class="back-link" href="/">Back to Explorer</a>
+          <h2>Address</h2>
+        </div>
+      </div>
+
+      <div class="wallet-card">
+        <div class="card-title">Summary</div>
+        <div class="details-grid" id="addressHeader"></div>
+      </div>
+
+      <div class="stats-grid address-overview" id="addressOverview"></div>
+
+      <div class="wallet-card" id="addressParticipationCard">
+        <div class="card-title">Participation</div>
+        <div class="details-grid" id="addressParticipation"></div>
+      </div>
+
+      <div class="wallet-card">
+        <div class="card-title">Transactions</div>
+        <div class="wallet-tabs address-tabs">
+          <button class="tab-btn active" data-filter="all">All</button>
+          <button class="tab-btn" data-filter="transfer">Transfers</button>
+          <button class="tab-btn" data-filter="reward">Rewards</button>
+          <button class="tab-btn" data-filter="participation">Participation</button>
+        </div>
+        <div class="tx-list" id="addressTxListPage">
+          <div class="detail-empty">Loading transactions...</div>
+        </div>
+        <div class="pager" id="addressTxPager">
+          <button id="addressLoadMore">Load more</button>
+        </div>
+      </div>
+
+      <details class="wallet-section">
+        <summary>Address details</summary>
+        <div class="section-body">
+          <div class="details-grid" id="addressDetails"></div>
+        </div>
+      </details>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

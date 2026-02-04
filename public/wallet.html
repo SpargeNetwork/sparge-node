@@ -28,13 +28,106 @@
         <h2>Wallet</h2>
         <div class="status" id="devWalletStatus">Not connected</div>
       </div>
-      <div class="wallet-grid">
+
+      <div class="wallet-actions">
+        <button class="btn primary" id="createWalletBtn">Create Wallet</button>
+        <button class="btn ghost" id="clearWalletBtn">Reset Wallet</button>
+      </div>
+
+      <div class="wallet-tabs">
+        <button class="tab-btn active" data-tab="overview">
+          <img src="/assets/overview.png" alt="" class="tab-icon" />
+          Overview
+        </button>
+        <button class="tab-btn" data-tab="send">
+          <img src="/assets/send.png" alt="" class="tab-icon" />
+          Send
+        </button>
+        <button class="tab-btn" data-tab="receive">
+          <img src="/assets/receive.png" alt="" class="tab-icon" />
+          Receive
+        </button>
+        <button class="tab-btn" data-tab="transactions">
+          <img src="/assets/transactions.png" alt="" class="tab-icon" />
+          Transactions
+        </button>
+        <button class="tab-btn" data-tab="participation" id="participationTabBtn">
+          <img src="/assets/participation.png" alt="" class="tab-icon" />
+          Participation
+        </button>
+        <button class="tab-btn" data-tab="advanced">
+          <img src="/assets/advanced.png" alt="" class="tab-icon" />
+          Advanced
+        </button>
+      </div>
+
+      <div class="wallet-tab-panel active" data-tab-panel="overview">
+        <div class="wallet-overview">
+        <div class="wallet-card balance-primary">
+          <div class="card-title">Balances</div>
+          <div class="balance-stack">
+            <div class="balance-block">
+              <div class="section-title">Available</div>
+              <div class="balance-amount" id="walletBalanceOverview">-</div>
+            </div>
+            <div class="balance-block">
+              <div class="section-title">Participant</div>
+              <div class="badge" id="participantBadge">-</div>
+            </div>
+          </div>
+        </div>
+        <div class="wallet-card light-panel">
+          <div class="card-title">Recent Transactions</div>
+          <div class="tx-list" id="walletActivityOverview">
+            <div class="detail-empty">No activity yet.</div>
+          </div>
+          <a class="view-all" id="walletActivityLink" href="#">View all activity -></a>
+        </div>
+      </div>
+      </div>
+
+      <div class="wallet-tab-panel" data-tab-panel="send">
         <div class="wallet-card">
-          <div class="card-title">Wallet</div>
-          <p class="card-note">This is a development wallet. Keys are stored locally in your browser.</p>
+          <div class="card-title">Send Transaction</div>
+          <form id="sendTxForm" class="tx-form">
+            <label>To Address<input type="text" id="txTo" required placeholder="spg_..." /></label>
+            <label><span class="label-with-icon"><img src="/assets/SPRG.png" alt="" class="sprg-icon" />Amount</span><input type="text" id="txAmount" required placeholder="0.0" /></label>
+            <label><span class="label-with-icon"><img src="/assets/SPRG.png" alt="" class="sprg-icon" />Fee</span><input type="text" id="txFee" required placeholder="0.0" /></label>
+            <div class="status" id="txFeeHint">Minimum fee: -</div>
+            <label>Memo (optional)<input type="text" id="txMemo" maxlength="128" placeholder="Memo (max 128 chars)" /></label>
+            <button class="btn primary" id="sendTxBtn" type="submit">Send</button>
+            <div class="status" id="sendTxStatus"></div>
+          </form>
+        </div>
+      </div>
+
+      <div class="wallet-tab-panel" data-tab-panel="receive">
+        <div class="wallet-card">
+          <div class="card-title">Receive</div>
+          <div class="wallet-details">
+            <div class="detail-row"><span>Address</span><span id="walletAddressReceive">-</span></div>
+          </div>
           <div class="wallet-actions">
-            <button class="btn primary" id="createWalletBtn">Create Wallet</button>
-            <button class="btn ghost" id="clearWalletBtn">Reset Wallet</button>
+            <button class="btn ghost" id="copyAddressBtn">Copy address</button>
+          </div>
+          <div class="status">Copy this address to receive SPRG.</div>
+        </div>
+      </div>
+
+      <div class="wallet-tab-panel" data-tab-panel="transactions">
+        <div class="wallet-card light-panel">
+          <div class="card-title">Transactions</div>
+          <div class="tx-list" id="walletActivity">
+            <div class="detail-empty">No activity yet.</div>
+          </div>
+          <div class="pager" id="walletActivityPager"></div>
+        </div>
+      </div>
+
+      <div class="wallet-tab-panel" data-tab-panel="participation">
+        <div class="wallet-card">
+          <div class="card-title">Participation &amp; Rewards</div>
+          <div class="wallet-actions">
             <button class="btn ghost" id="registerParticipantBtn">Register as participant</button>
             <button class="btn ghost" id="unregisterParticipantBtn">Unregister</button>
             <button class="btn ghost" id="heartbeatBtn">Heartbeat</button>
@@ -43,6 +136,20 @@
             <input class="input" type="text" id="sponsorAddressInput" placeholder="Sponsor participant address (spg_...)" />
             <button class="btn ghost" id="sponsorParticipantBtn">Sponsor address</button>
           </div>
+          <div class="wallet-details">
+            <div class="detail-row"><span>Status</span><span id="participantStatus">-</span></div>
+            <div class="detail-row"><span>Bond Locked</span><span id="participantBond">-</span></div>
+            <div class="detail-row"><span>Sponsor</span><span id="participantSponsor">-</span></div>
+            <div class="detail-row"><span>Next Activity</span><span id="participantNext">-</span></div>
+            <div class="detail-row"><span>Auto Heartbeat</span><span><input type="checkbox" id="autoHeartbeatToggle" /></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="wallet-tab-panel" data-tab-panel="advanced">
+        <div class="wallet-card">
+          <div class="card-title">Advanced details</div>
+          <p class="card-note">This is a development wallet. Keys are stored locally in your browser.</p>
           <div class="wallet-details">
             <div class="detail-row"><span>Address</span><span id="walletAddress">-</span></div>
             <div class="detail-row">
@@ -59,35 +166,7 @@
                 <span id="walletPrivateKey" class="mono hidden">-</span>
               </span>
             </div>
-          </div>
-        </div>
-        <div class="wallet-card">
-          <div class="card-title">Balance</div>
-          <div class="balance-value" id="walletBalance">-</div>
-          <div class="status" id="walletBalanceHint">Waiting for block rewards…</div>
-          <div class="detail-row"><span>Nonce</span><span id="walletNonce">-</span></div>
-          <div class="detail-row"><span>Participant Status</span><span id="participantStatus">-</span></div>
-          <div class="detail-row"><span>Bond Locked</span><span id="participantBond">-</span></div>
-          <div class="detail-row"><span>Sponsor</span><span id="participantSponsor">-</span></div>
-          <div class="detail-row"><span>Next Activity</span><span id="participantNext">-</span></div>
-          <div class="detail-row"><span>Auto Heartbeat</span><span><input type="checkbox" id="autoHeartbeatToggle" /></span></div>
-        </div>
-        <div class="wallet-card">
-          <div class="card-title">Send Transaction</div>
-          <form id="sendTxForm" class="tx-form">
-            <label>To Address<input type="text" id="txTo" required placeholder="spg_..." /></label>
-            <label>Amount (SPRG)<input type="text" id="txAmount" required placeholder="0.0" /></label>
-            <label>Fee (SPRG)<input type="text" id="txFee" required placeholder="0.0" /></label>
-            <div class="status" id="txFeeHint">Minimum fee: -</div>
-            <label>Memo (optional)<input type="text" id="txMemo" maxlength="128" placeholder="Memo (max 128 chars)" /></label>
-            <button class="btn primary" id="sendTxBtn" type="submit">Send</button>
-            <div class="status" id="sendTxStatus"></div>
-          </form>
-        </div>
-        <div class="wallet-card">
-          <div class="card-title">Recent Activity</div>
-          <div class="tx-list" id="walletActivity">
-            <div class="detail-empty">No activity yet.</div>
+            <div class="detail-row"><span>Nonce</span><span id="walletNonce">-</span></div>
           </div>
         </div>
       </div>

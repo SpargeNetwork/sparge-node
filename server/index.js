@@ -21,13 +21,21 @@ app.use('/api/blocks', blocksRouter(blockchain));
 app.use('/api/mining', miningRouter(miner));
 app.use('/api/mempool', mempoolRouter(mempool));
 app.use('/api', rpcRouter(blockchain, mempool, config));
-app.use('/', rpcRouter(blockchain, mempool, config));
 app.use('/api/debug', debugRouter(blockchain));
 app.get(['/wallet', '/wallet/'], (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'wallet.html'));
 });
 app.get(['/docs', '/docs/'], (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'docs.html'));
+});
+app.get(['/block/:height', '/block/:height/'], (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'block.html'));
+});
+app.get(['/tx/:txid', '/tx/:txid/'], (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'tx.html'));
+});
+app.get(['/address/:addr', '/address/:addr/'], (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'address.html'));
 });
 app.use(express.static(path.join(__dirname, '..', 'public')));
 

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sparge Transaction</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <a class="brand" href="/">
+      <img src="/assets/sparge_logo.png" alt="Sparge logo" class="logo-img" />
+      <div class="title">Sparge</div>
+    </a>
+    <nav class="top-nav">
+      <a href="/" class="nav-link active">Explorer</a>
+      <a href="/wallet" class="nav-link">Wallet</a>
+      <a href="https://spargenetwork.github.io/sparge-docs/" class="nav-link" target="_blank" rel="noreferrer">Docs</a>
+    </nav>
+    <div class="header-actions"></div>
+  </header>
+
+  <main>
+    <section class="panel" id="txPage">
+      <div class="panel-header">
+        <div>
+          <a class="back-link" id="txBackLink" href="/">Back to Explorer</a>
+          <h2>Transaction</h2>
+        </div>
+      </div>
+
+      <div class="tx-page-grid">
+        <div class="wallet-card">
+          <div class="card-title">Summary</div>
+          <div class="details-grid" id="txSummary"></div>
+        </div>
+        <div class="wallet-card">
+          <div class="card-title">Parties</div>
+          <div class="details-grid" id="txParties"></div>
+        </div>
+        <div class="wallet-card">
+          <div class="card-title">Amount & Fees</div>
+          <div class="details-grid" id="txAmounts"></div>
+        </div>
+        <div class="wallet-card" id="txParticipationCard">
+          <div class="card-title">Participation Impact</div>
+          <div class="details-grid" id="txParticipation"></div>
+        </div>
+        <details class="wallet-section" id="txTechnical">
+          <summary>Technical details</summary>
+          <div class="section-body">
+            <div class="details-grid" id="txTechnicalBody"></div>
+          </div>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

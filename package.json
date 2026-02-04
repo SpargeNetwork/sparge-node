@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node server/index.js",
     "wallet": "node scripts/wallet.js",
-    "tx": "node scripts/tx.js"
+    "tx": "node scripts/tx.js",
+    "mine:start": "node scripts/mine.js start",
+    "mine:stop": "node scripts/mine.js stop",
+    "mine:status": "node scripts/mine.js status"
   },
   "dependencies": {
     "bs58": "^5.0.0",
