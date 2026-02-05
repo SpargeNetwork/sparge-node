@@ -150,6 +150,11 @@
         <div class="wallet-card">
           <div class="card-title">Advanced details</div>
           <p class="card-note">This is a development wallet. Keys are stored locally in your browser.</p>
+          <div class="wallet-actions">
+            <button class="btn ghost" id="exportWalletBtn">Export wallet</button>
+            <button class="btn ghost" id="importWalletBtn">Import wallet</button>
+            <input type="file" id="importWalletFile" class="hidden" accept="application/json" />
+          </div>
           <div class="wallet-details">
             <div class="detail-row"><span>Address</span><span id="walletAddress">-</span></div>
             <div class="detail-row">

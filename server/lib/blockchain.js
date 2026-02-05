@@ -1,9 +1,7 @@
 ﻿const path = require('path');
 const crypto = require('crypto');
-const fs = require('fs');
-const { appendBlock, loadBlocks, getLatestBlock, ensureDir, getBlocksPage } = require('./storage');
 const { toBaseUnits, formatTokens } = require('./units');
-const { loadLedger, saveLedger, getBalanceUnits, setBalanceUnits, setStakeUnits, getNonce, setNonce } = require('./ledger');
+const { getBalanceUnits, setBalanceUnits, setStakeUnits, getNonce, setNonce } = require('./ledger');
 const { ensureGenesis } = require('./genesis');
 const { ACTIVE_WINDOW_BLOCKS, MAX_SPONSORED_PARTICIPANTS, PARTICIPANT_BOND_MICRO } = require('./participants');
 
@@ -14,25 +12,6 @@ const YEAR_SECONDS = 31_536_000n;
 
 function sha256(input) {
   return crypto.createHash('sha256').update(input).digest('hex');
-}
-
-function getMetaPath(dataDir) {
-  return path.join(dataDir, 'meta.json');
-}
-
-function loadMeta(dataDir) {
-  const metaPath = getMetaPath(dataDir);
-  if (!fs.existsSync(metaPath)) return null;
-  const raw = fs.readFileSync(metaPath, 'utf8');
-  if (!raw.trim()) return null;
-  return JSON.parse(raw);
-}
-
-function saveMeta(dataDir, meta) {
-  const metaPath = getMetaPath(dataDir);
-  const tmpPath = `${metaPath}.tmp`;
-  fs.writeFileSync(tmpPath, JSON.stringify(meta, null, 2), 'utf8');
-  fs.renameSync(tmpPath, metaPath);
 }
 
 function createGenesisBlock(config, genesisHash) {
@@ -78,10 +57,13 @@ function createGenesisBlock(config, genesisHash) {
   };
 }
 
-function createBlockchain(config, mempool) {
+function createBlockchain(config, mempool, storage) {
   const dataDir = path.join(__dirname, '..', 'data');
-  ensureDir(dataDir);
   const { genesis, genesisHash } = ensureGenesis(dataDir, config);
+  const genesisOperatorAddress = genesis.genesisOperatorAddress || config.mining?.genesisOperatorAddress || config.mining?.proposerAddress || '';
+  const genesisFreeBlocks = Number(genesis.genesisFreeBlocks ?? config.mining?.genesisFreeBlocks ?? 100);
+  const nodePoolAddress = config.rewards?.nodePoolAddress || 'NODE_POOL';
+  const holderPoolAddress = config.rewards?.holderPoolAddress || 'HOLDER_POOL';
 
   const decimals = config.token.decimals;
   const initialSupplyUnits = toBaseUnits(config.token.initialSupplyTokens, decimals);
@@ -95,19 +77,30 @@ function createBlockchain(config, mempool) {
   const blocksPerYear = YEAR_SECONDS / BigInt(config.chain.blockTimeSeconds);
   const blocksPer14Days = BigInt(14 * 24 * 60 * 60) / BigInt(config.chain.blockTimeSeconds);
 
-  let meta = loadMeta(dataDir);
-  let blocks = loadBlocks(dataDir);
-  let ledger = loadLedger(dataDir);
+  if (!storage) {
+    throw new Error('Storage backend is required');
+  }
+
+  storage.initializeMeta({
+    chainId: config.chain.chainId,
+    genesisHash,
+    protocolVersion: config.chain.protocolVersion,
+    economicsVersion: config.chain.economicsVersion
+  });
+
+  let meta = storage.loadMeta() || {};
+  let blocks = storage.getAllBlocks();
+  let ledger = storage.loadLedger();
 
   validateGenesis(config, genesis, genesisHash, blocks);
 
   if (!blocks.length) {
-    const genesis = createGenesisBlock(config, genesisHash);
-    appendBlock(dataDir, config.storage.blocksPerFile, genesis);
-    blocks = [genesis];
+    const genesisBlock = createGenesisBlock(config, genesisHash);
+    blocks = [genesisBlock];
     meta = {
+      ...meta,
       latestHeight: 0,
-      latestHash: genesis.hash,
+      latestHash: genesisBlock.hash,
       totalSupplyUnits: initialSupplyUnits.toString(),
       totalMintedUnits: '0',
       mintAcc: '0',
@@ -116,22 +109,15 @@ function createBlockchain(config, mempool) {
       holderPoolUnits: '0',
       lastPayoutHeight: 0
     };
-    saveMeta(dataDir, meta);
+    storage.putBlock(genesisBlock, meta, ledger);
   }
 
-  if (!ledger.participants || Object.keys(ledger.participants).length === 0) {
-    const genesisParticipant = config.mining.proposerAddress;
-    if (!ledger.participants) ledger.participants = {};
-    ledger.participants[genesisParticipant] = {
-      sponsor: genesisParticipant,
-      bondMicro: '0',
-      registeredHeight: '0',
-      lastSeenHeight: '0'
-    };
-    saveLedger(dataDir, ledger);
+  if (!ledger.participants) {
+    ledger.participants = {};
+    storage.saveLedger(ledger);
   }
 
-  if (!meta) {
+  if (!meta || Object.keys(meta).length === 0) {
     const latest = blocks[blocks.length - 1];
     meta = {
       latestHeight: latest.height,
@@ -144,7 +130,7 @@ function createBlockchain(config, mempool) {
       holderPoolUnits: '0',
       lastPayoutHeight: 0
     };
-    saveMeta(dataDir, meta);
+    storage.saveMeta(meta);
   }
 
   if (!meta.baseFeeBaseUnits) {
@@ -156,12 +142,19 @@ function createBlockchain(config, mempool) {
   if (!meta.nodePoolUnits) meta.nodePoolUnits = '0';
   if (!meta.holderPoolUnits) meta.holderPoolUnits = '0';
   if (meta.lastPayoutHeight === undefined || meta.lastPayoutHeight === null) meta.lastPayoutHeight = 0;
-  saveMeta(dataDir, meta);
+  if (meta.genesisFreeUsed === undefined || meta.genesisFreeUsed === null) meta.genesisFreeUsed = '0';
+  storage.saveMeta(meta);
 
   function getState() {
-    const blocks = loadBlocks(dataDir);
+    const blocks = storage.getAllBlocks();
     const latest = blocks.length ? blocks[blocks.length - 1] : null;
     const stats = computeChainStats(blocks, decimals);
+    const addressSet = new Set(stats.addresses || []);
+    Object.keys(ledger.balances || {}).forEach((addr) => addressSet.add(addr));
+    if (config.rewards?.treasuryAddress) addressSet.add(config.rewards.treasuryAddress);
+    if (genesisOperatorAddress) addressSet.add(genesisOperatorAddress);
+    if (nodePoolAddress) addressSet.add(nodePoolAddress);
+    if (holderPoolAddress) addressSet.add(holderPoolAddress);
     const height = BigInt(meta.latestHeight || 0);
     const activeParticipants = getActiveParticipants(ledger, height, ACTIVE_WINDOW_BLOCKS);
     const totalRegisteredParticipants = Object.keys(ledger.participants || {}).length;
@@ -179,7 +172,13 @@ function createBlockchain(config, mempool) {
       symbol: config.chain.symbol,
       blockTimeSeconds: config.chain.blockTimeSeconds,
       proposerAddress: config.mining.proposerAddress,
+      producerAddress: config.mining.proposerAddress,
       treasuryAddress: config.rewards?.treasuryAddress || '',
+      nodePoolAddress,
+      holderPoolAddress,
+      genesisOperatorAddress,
+      genesisFreeBlocks,
+      genesisFreeUsed: String(meta.genesisFreeUsed || '0') === '1',
       decimals,
       totalSupplyTokens: formatTokens(BigInt(meta.totalSupplyUnits), decimals),
       totalMintedTokens: formatTokens(BigInt(meta.totalMintedUnits), decimals),
@@ -192,7 +191,7 @@ function createBlockchain(config, mempool) {
         : null,
       totalTransactions: stats.totalTransactions,
       averageGasFeeTokens: formatTokens(stats.averageFeeMicro, decimals),
-      totalAddresses: stats.totalAddresses,
+      totalAddresses: addressSet.size,
       baseFeeTokens: formatTokens(BigInt(meta.baseFeeBaseUnits), decimals),
       baseFeeMicro: meta.baseFeeBaseUnits,
       minFeeMicro: (config.tx?.minFeeMicro ?? config.gas?.baseFeeInitialMicro ?? '0').toString(),
@@ -225,7 +224,7 @@ function createBlockchain(config, mempool) {
   }
 
   function mineNextBlock() {
-    const latest = getLatestBlock(dataDir, config.storage.blocksPerFile);
+    const latest = storage.getLatestBlock();
     const height = latest ? latest.height + 1 : 0;
     const timestamp = new Date().toISOString();
 
@@ -234,7 +233,16 @@ function createBlockchain(config, mempool) {
       ? selectMempoolTxs(mempool, ledger, gasBlockLimit)
       : [];
 
-    const userTxs = applyUserTxs(selected, ledger, config.mining.proposerAddress, BigInt(height), blocksPer14Days);
+    const userTxs = applyUserTxs(
+      selected,
+      ledger,
+      meta,
+      config.rewards?.treasuryAddress || '',
+      genesisOperatorAddress,
+      genesisFreeBlocks,
+      BigInt(height),
+      blocksPer14Days
+    );
 
     const mintContext = mintAndDistribute(
       BigInt(height),
@@ -243,7 +251,9 @@ function createBlockchain(config, mempool) {
       meta,
       ledger,
       blocksPerYear,
-      blocksPer14Days
+      blocksPer14Days,
+      nodePoolAddress,
+      holderPoolAddress
     );
 
     const rewardTxs = buildMintTxs(mintContext, timestamp, BigInt(height));
@@ -306,8 +316,6 @@ function createBlockchain(config, mempool) {
       payload
     };
 
-    appendBlock(dataDir, config.storage.blocksPerFile, block);
-
     meta.latestHeight = block.height;
     meta.latestHash = block.hash;
     meta.baseFeeBaseUnits = nextBaseFee.toString();
@@ -325,32 +333,32 @@ function createBlockchain(config, mempool) {
     meta.lastNodePoolAdd = mintContext.nodePoolAdd.toString();
     meta.lastHolderPoolAdd = mintContext.holderPoolAdd.toString();
     meta.lastTreasuryUnits = mintContext.treasuryUnits.toString();
-
-    saveMeta(dataDir, meta);
-    saveLedger(dataDir, ledger);
+    storage.putBlock(block, meta, ledger);
     return block;
   }
 
   function getBlocks(offset, limit) {
-    return getBlocksPage(dataDir, config.storage.blocksPerFile, offset, limit);
+    return storage.getBlocksPage(offset, limit);
   }
 
   return {
     getState,
     canMint,
     mineNextBlock,
+    getGenesisFreeContext() {
+      return {
+        genesisOperatorAddress,
+        genesisFreeBlocks,
+        genesisFreeUsed: String(meta.genesisFreeUsed || '0') === '1',
+        latestHeight: Number(meta.latestHeight || 0)
+      };
+    },
     checkInvariants() {
       const errors = [];
       const warnings = [];
-      const blocks = loadBlocks(dataDir);
+      const blocks = storage.getAllBlocks();
       const participants = {};
-      const genesisParticipant = config.mining.proposerAddress;
-      participants[genesisParticipant] = {
-        sponsor: genesisParticipant,
-        bondMicro: '0',
-        registeredHeight: '0',
-        lastSeenHeight: '0'
-      };
+      let genesisFreeUsed = false;
       const lastNonce = new Map();
 
       for (const block of blocks) {
@@ -419,12 +427,22 @@ function createBlockchain(config, mempool) {
           if (tx.type === 'register_participant') {
             const participant = tx.participant || '';
             if (participant) {
+              const withinFreeWindow = genesisFreeBlocks > 0 && height < BigInt(genesisFreeBlocks);
+              const isGenesisFree = !genesisFreeUsed && withinFreeWindow && tx.from === genesisOperatorAddress;
+              const bondRecorded = participants[participant]?.bondMicro || '0';
+              if (isGenesisFree && bondRecorded !== '0') {
+                errors.push(`height ${block.height}: genesis free registration should have bond 0`);
+              }
+              if (!isGenesisFree && bondRecorded === '0') {
+                errors.push(`height ${block.height}: non-genesis registration with zero bond`);
+              }
               participants[participant] = {
                 sponsor: tx.from,
-                bondMicro: String(PARTICIPANT_BOND_MICRO),
+                bondMicro: isGenesisFree ? '0' : String(PARTICIPANT_BOND_MICRO),
                 registeredHeight: String(height),
                 lastSeenHeight: String(height)
               };
+              if (isGenesisFree) genesisFreeUsed = true;
             }
           }
           if (tx.type === 'unregister_participant') {
@@ -444,6 +462,12 @@ function createBlockchain(config, mempool) {
         }
       }
 
+      const zeroBond = Object.entries(participants).filter(([, record]) => (record?.bondMicro || '0') === '0');
+      const nonGenesisZero = zeroBond.filter(([addr]) => addr !== genesisOperatorAddress);
+      if (nonGenesisZero.length) {
+        errors.push(`zero bond participants found for non-genesis addresses: ${nonGenesisZero.map(([addr]) => addr).join(', ')}`);
+      }
+
       return {
         ok: errors.length === 0,
         errors,
@@ -461,19 +485,13 @@ function createBlockchain(config, mempool) {
       return getNonce(ledger, address).toString();
     },
     getBlockByHeight(height) {
-      const all = loadBlocks(dataDir);
-      return all.find((block) => block.height === height) || null;
+      return storage.getBlockByHeight(height);
     },
     getTxById(txid) {
-      const all = loadBlocks(dataDir);
-      for (const block of all) {
-        if (!Array.isArray(block.transactions)) continue;
-        const found = block.transactions.find((tx) => tx.id === txid || tx.txid === txid);
-        if (found) return { ...found, blockHeight: block.height };
-      }
-      return null;
+      return storage.getTxById(txid);
     },
     getAddressStats(address) {
+      const summary = storage.getAddressSummary(address, ACTIVE_WINDOW_BLOCKS) || {};
       const balance = getBalanceUnits(ledger, address).toString();
       const nonce = getNonce(ledger, address).toString();
       const height = BigInt(meta.latestHeight || 0);
@@ -482,79 +500,23 @@ function createBlockchain(config, mempool) {
       const history = ledger.balanceHistory?.[address] || [];
       const avgBalance = computeAverageBalance(history, BigInt(balance || '0'), startHeight, height);
       const avgEligible = avgBalance >= 1000n * MICRO;
-      const participantRecord = ledger.participants?.[address] || null;
-      let participant = null;
-      if (participantRecord) {
-        const lastSeen = BigInt(participantRecord.lastSeenHeight || '0');
-        const isActive = height >= lastSeen
-          ? height - lastSeen <= BigInt(ACTIVE_WINDOW_BLOCKS)
-          : false;
-        participant = {
-          sponsor: participantRecord.sponsor || '',
-          bondMicro: participantRecord.bondMicro || '0',
-          lastSeenHeight: participantRecord.lastSeenHeight || '0',
-          registeredHeight: participantRecord.registeredHeight || '0',
-          status: isActive ? 'active' : 'inactive'
-        };
-      }
-      const sponsored = Object.values(ledger.participants || {}).filter((record) => record.sponsor === address);
-      const sponsoredActiveCount = sponsored.filter((record) => {
-        try {
-          const lastSeen = BigInt(record.lastSeenHeight || '0');
-          return height >= lastSeen && height - lastSeen <= BigInt(ACTIVE_WINDOW_BLOCKS);
-        } catch {
-          return false;
-        }
-      }).length;
-      const all = loadBlocks(dataDir);
-      let txCount = 0;
-      let firstSeen = null;
-      let lastSeen = null;
-      for (const block of all) {
-        const txs = getBlockTransactions(block);
-        for (const tx of txs) {
-          if (tx.from === address || tx.to === address) {
-            txCount += 1;
-            if (!firstSeen) firstSeen = block.timestamp;
-            lastSeen = block.timestamp;
-          }
-        }
-      }
       return {
         address,
         balanceMicro: balance,
         avgBalanceMicro: avgBalance.toString(),
         avgEligible,
         nonce,
-        txCount,
-        firstSeen,
-        lastSeen,
-        participant,
-        sponsoredActiveCount
+        txCount: summary.txCount ?? 0,
+        firstSeenHeight: summary.firstSeenHeight ?? null,
+        lastSeenHeight: summary.lastSeenHeight ?? null,
+        firstSeen: summary.firstSeen ?? null,
+        lastSeen: summary.lastSeen ?? null,
+        participant: summary.participant ?? null,
+        sponsoredActiveCount: summary.sponsoredActiveCount ?? 0
       };
     },
     getAddressTxs(address, limit = 50) {
-      const all = loadBlocks(dataDir);
-      const items = [];
-      for (let i = all.length - 1; i >= 0; i -= 1) {
-        const block = all[i];
-        const txs = getBlockTransactions(block);
-        for (const tx of txs) {
-          if (tx.from !== address && tx.to !== address) continue;
-          items.push({
-            txid: tx.txid ?? tx.id,
-            type: tx.type ?? 'transfer',
-            from: tx.from || null,
-            to: tx.to || null,
-            amountMicro: tx.amountMicro ?? tx.amountBaseUnits ?? '0',
-            feeMicro: tx.feeMicro ?? tx.feeBaseUnits ?? '0',
-            timestamp: tx.timestamp || block.timestamp,
-            blockHeight: block.height
-          });
-          if (items.length >= limit) return items;
-        }
-      }
-      return items;
+      return storage.getAddressTxs(address, limit);
     },
     registerParticipant(address, sponsor, height, bondMicro) {
       if (!ledger.participants) ledger.participants = {};
@@ -564,7 +526,7 @@ function createBlockchain(config, mempool) {
         registeredHeight: height.toString(),
         lastSeenHeight: height.toString()
       };
-      saveLedger(dataDir, ledger);
+      storage.saveLedger(ledger);
     },
     getParticipantRecord(address) {
       return ledger.participants?.[address] || null;
@@ -580,16 +542,16 @@ function createBlockchain(config, mempool) {
     setBalanceUnits(address, amountUnits) {
       const height = BigInt(meta.latestHeight || 0);
       setBalanceWithHistory(ledger, address, BigInt(amountUnits), height, blocksPer14Days);
-      saveLedger(dataDir, ledger);
+      storage.saveLedger(ledger);
     },
     setStakeUnits(address, amountUnits) {
       setStakeUnits(ledger, address, BigInt(amountUnits));
-      saveLedger(dataDir, ledger);
+      storage.saveLedger(ledger);
     }
   };
 }
 
-function mintAndDistribute(height, timestamp, config, meta, ledger, blocksPerYear, blocksPer14Days) {
+function mintAndDistribute(height, timestamp, config, meta, ledger, blocksPerYear, blocksPer14Days, nodePoolAddress, holderPoolAddress) {
   const totalSupplyUnits = BigInt(meta.totalSupplyUnits || '0');
   const totalMintedUnits = BigInt(meta.totalMintedUnits || '0');
   const mintAcc = BigInt(meta.mintAcc || '0');
@@ -615,6 +577,8 @@ function mintAndDistribute(height, timestamp, config, meta, ledger, blocksPerYea
 
   const proposerAddress = config.mining.proposerAddress;
   const treasuryAddress = config.rewards.treasuryAddress;
+  const nodePoolAddr = nodePoolAddress;
+  const holderPoolAddr = holderPoolAddress;
 
   const participantPayout = distributeParticipants(
     ledger,
@@ -630,6 +594,13 @@ function mintAndDistribute(height, timestamp, config, meta, ledger, blocksPerYea
 
   let updatedNodePool = nodePoolUnits + nodePoolAdd;
   let updatedHolderPool = holderPoolUnits + holderPoolAdd;
+
+  if (nodePoolAddr && nodePoolAddr !== treasuryAddress) {
+    creditBalance(ledger, nodePoolAddr, nodePoolAdd, height, blocksPer14Days);
+  }
+  if (holderPoolAddr && holderPoolAddr !== treasuryAddress) {
+    creditBalance(ledger, holderPoolAddr, holderPoolAdd, height, blocksPer14Days);
+  }
   let lastPayoutHeight = Number(meta.lastPayoutHeight || 0);
 
   const payoutTxs = [];
@@ -641,7 +612,10 @@ function mintAndDistribute(height, timestamp, config, meta, ledger, blocksPerYea
       treasuryAddress,
       height,
       timestamp,
-      blocksPer14Days
+      blocksPer14Days,
+      nodePoolAddr,
+      holderPoolAddr,
+      proposerAddress
     );
     updatedNodePool = payout.nodePoolRemaining;
     updatedHolderPool = payout.holderPoolRemaining;
@@ -649,18 +623,18 @@ function mintAndDistribute(height, timestamp, config, meta, ledger, blocksPerYea
     payoutTxs.push(...payout.txs);
   }
 
-    return {
-      mintUnits,
-      ratePpm,
-      totalSupplyUnits: updatedTotalSupply,
-      totalMintedUnits: updatedTotalMinted,
-      mintAcc: updatedMintAcc,
-      participantUnits,
-      participantShareUnits: participantPayout.participantShareUnits,
-      participantRewards: participantPayout.rewards,
-      participantCount: participantPayout.activeCount,
-      participantToTreasury: participantPayout.treasuryRemainder,
-      treasuryUnits,
+  return {
+    mintUnits,
+    ratePpm,
+    totalSupplyUnits: updatedTotalSupply,
+    totalMintedUnits: updatedTotalMinted,
+    mintAcc: updatedMintAcc,
+    participantUnits,
+    participantShareUnits: participantPayout.participantShareUnits,
+    participantRewards: participantPayout.rewards,
+    participantCount: participantPayout.activeCount,
+    participantToTreasury: participantPayout.treasuryRemainder,
+    treasuryUnits,
     nodePoolAdd,
     holderPoolAdd,
     nodePoolUnits: updatedNodePool,
@@ -668,14 +642,18 @@ function mintAndDistribute(height, timestamp, config, meta, ledger, blocksPerYea
     lastPayoutHeight,
     payoutTxs,
     proposerAddress,
-    treasuryAddress
+    treasuryAddress,
+    nodePoolAddress: nodePoolAddr,
+    holderPoolAddress: holderPoolAddr
   };
 }
 
-function payoutPools(ledger, nodePoolUnits, holderPoolUnits, treasuryAddress, height, timestamp, holderWindowBlocks) {
+function payoutPools(ledger, nodePoolUnits, holderPoolUnits, treasuryAddress, height, timestamp, holderWindowBlocks, nodePoolAddress, holderPoolAddress, proposerAddress) {
   const txs = [];
   let nodeRemaining = nodePoolUnits;
   let holderRemaining = holderPoolUnits;
+
+  const systemAddresses = new Set([treasuryAddress, nodePoolAddress, holderPoolAddress, proposerAddress].filter(Boolean));
 
   const stakeEntries = Object.entries(ledger.stakes || {})
     .map(([address, value]) => [address, BigInt(value)])
@@ -684,6 +662,9 @@ function payoutPools(ledger, nodePoolUnits, holderPoolUnits, treasuryAddress, he
 
   if (totalStake > 0n && nodePoolUnits > 0n) {
     let distributed = 0n;
+    if (nodePoolAddress && nodePoolAddress !== treasuryAddress) {
+      debitBalance(ledger, nodePoolAddress, nodePoolUnits, height, holderWindowBlocks);
+    }
     for (const [address, stake] of stakeEntries) {
       if (stake <= 0n) continue;
       const reward = (nodePoolUnits * stake) / totalStake;
@@ -718,6 +699,9 @@ function payoutPools(ledger, nodePoolUnits, holderPoolUnits, treasuryAddress, he
     }
     nodeRemaining = 0n;
   } else if (nodePoolUnits > 0n) {
+    if (nodePoolAddress && nodePoolAddress !== treasuryAddress) {
+      debitBalance(ledger, nodePoolAddress, nodePoolUnits, height, holderWindowBlocks);
+    }
     creditBalance(ledger, treasuryAddress, nodePoolUnits, height, holderWindowBlocks);
     txs.push({
       id: `node-empty-${height}`,
@@ -743,11 +727,14 @@ function payoutPools(ledger, nodePoolUnits, holderPoolUnits, treasuryAddress, he
       const avg = computeAverageBalance(history, balance, startHeight, height);
       return [address, avg];
     })
-    .filter(([, avg]) => avg >= 1000n * MICRO);
+    .filter(([address, avg]) => avg >= 1000n * MICRO && !systemAddresses.has(address));
   const totalBalance = eligibleBalances.reduce((sum, [, avg]) => sum + avg, 0n);
 
   if (totalBalance > 0n && holderPoolUnits > 0n) {
     let distributed = 0n;
+    if (holderPoolAddress && holderPoolAddress !== treasuryAddress) {
+      debitBalance(ledger, holderPoolAddress, holderPoolUnits, height, holderWindowBlocks);
+    }
     for (const [address, avg] of eligibleBalances) {
       const reward = (holderPoolUnits * avg) / totalBalance;
       if (reward > 0n) {
@@ -781,6 +768,9 @@ function payoutPools(ledger, nodePoolUnits, holderPoolUnits, treasuryAddress, he
   }
     holderRemaining = 0n;
   } else if (holderPoolUnits > 0n) {
+    if (holderPoolAddress && holderPoolAddress !== treasuryAddress) {
+      debitBalance(ledger, holderPoolAddress, holderPoolUnits, height, holderWindowBlocks);
+    }
     creditBalance(ledger, treasuryAddress, holderPoolUnits, height, holderWindowBlocks);
     txs.push({
       id: `holder-empty-${height}`,
@@ -804,6 +794,30 @@ function payoutPools(ledger, nodePoolUnits, holderPoolUnits, treasuryAddress, he
 
 function buildMintTxs(mintContext, timestamp, height) {
   const txs = [];
+  if (mintContext.nodePoolAdd && mintContext.nodePoolAdd !== '0' && mintContext.nodePoolAddress) {
+    txs.push({
+      id: `node-pool-${height}`,
+      txid: `node-pool-${height}`,
+      type: 'node_pool_accrual',
+      from: null,
+      to: mintContext.nodePoolAddress,
+      amountMicro: mintContext.nodePoolAdd.toString(),
+      feeMicro: '0',
+      timestamp
+    });
+  }
+  if (mintContext.holderPoolAdd && mintContext.holderPoolAdd !== '0' && mintContext.holderPoolAddress) {
+    txs.push({
+      id: `holder-pool-${height}`,
+      txid: `holder-pool-${height}`,
+      type: 'holder_pool_accrual',
+      from: null,
+      to: mintContext.holderPoolAddress,
+      amountMicro: mintContext.holderPoolAdd.toString(),
+      feeMicro: '0',
+      timestamp
+    });
+  }
   if (Array.isArray(mintContext.participantRewards) && mintContext.participantRewards.length) {
     for (const reward of mintContext.participantRewards) {
       txs.push({
@@ -884,9 +898,16 @@ function setBalanceWithHistory(ledger, address, value, height, windowBlocks) {
 }
 
 function creditBalance(ledger, address, amount, height, windowBlocks) {
-  if (!address) return;
+  if (!address || amount === 0n) return;
   const current = getBalanceUnits(ledger, address);
   const next = current + amount;
+  setBalanceWithHistory(ledger, address, next, height, windowBlocks);
+}
+
+function debitBalance(ledger, address, amount, height, windowBlocks) {
+  if (!address || amount === 0n) return;
+  const current = getBalanceUnits(ledger, address);
+  const next = current > amount ? current - amount : 0n;
   setBalanceWithHistory(ledger, address, next, height, windowBlocks);
 }
 
@@ -1086,10 +1107,11 @@ function selectMempoolTxs(mempool, ledger, limitCount) {
   return selected;
 }
 
-function applyUserTxs(txs, ledger, feeRecipient, height, avgWindowBlocks) {
+function applyUserTxs(txs, ledger, meta, feeRecipient, genesisOperatorAddress, genesisFreeBlocks, height, avgWindowBlocks) {
   const applied = [];
   const cachedNonce = new Map();
   const cachedBalance = new Map();
+  let genesisFreeUsed = String(meta.genesisFreeUsed || '0') === '1';
 
   for (const tx of txs) {
     if (!tx.type) continue;
@@ -1110,7 +1132,17 @@ function applyUserTxs(txs, ledger, feeRecipient, height, avgWindowBlocks) {
       ? cachedBalance.get(signer)
       : getBalanceUnits(ledger, signer);
     let total = amount + fee;
-    const bondMicro = tx.type === 'register_participant' ? PARTICIPANT_BOND_MICRO : 0n;
+    let bondMicro = 0n;
+    let isGenesisFree = false;
+    if (tx.type === 'register_participant') {
+      const withinFreeWindow = genesisFreeBlocks > 0 && height < BigInt(genesisFreeBlocks);
+      if (!genesisFreeUsed && withinFreeWindow && genesisOperatorAddress && tx.from === genesisOperatorAddress) {
+        bondMicro = 0n;
+        isGenesisFree = true;
+      } else {
+        bondMicro = PARTICIPANT_BOND_MICRO;
+      }
+    }
     total += bondMicro;
     if (currentBalance < total) continue;
 
@@ -1131,6 +1163,7 @@ function applyUserTxs(txs, ledger, feeRecipient, height, avgWindowBlocks) {
     if (tx.type === 'register_participant') {
       const participant = tx.participant;
       if (!participant) continue;
+      if (isGenesisFree && participant !== signer) continue;
       if (ledger.participants?.[participant]) continue;
       const active = getActiveParticipants(ledger, height, ACTIVE_WINDOW_BLOCKS);
       const sponsorActive = active.filter((addr) => {
@@ -1145,6 +1178,10 @@ function applyUserTxs(txs, ledger, feeRecipient, height, avgWindowBlocks) {
         registeredHeight: height.toString(),
         lastSeenHeight: height.toString()
       };
+      if (isGenesisFree) {
+        genesisFreeUsed = true;
+        meta.genesisFreeUsed = '1';
+      }
       if (fee > 0n && feeRecipient) creditBalance(ledger, feeRecipient, fee, height, avgWindowBlocks);
     }
 
@@ -1176,6 +1213,7 @@ function applyUserTxs(txs, ledger, feeRecipient, height, avgWindowBlocks) {
       to,
       amountMicro: amount.toString(),
       feeMicro: fee.toString(),
+      bondMicro: bondMicro.toString(),
       nonce: tx.nonce,
       chainId: tx.chainId,
       publicKeyHex: tx.publicKeyHex,
@@ -1248,7 +1286,8 @@ function computeChainStats(blocks, decimals) {
   return {
     totalTransactions,
     averageFeeMicro,
-    totalAddresses: addresses.size
+    totalAddresses: addresses.size,
+    addresses: Array.from(addresses)
   };
 }
 

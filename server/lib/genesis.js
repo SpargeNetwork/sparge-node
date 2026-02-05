@@ -27,6 +27,8 @@ function ensureGenesis(dataDir, config) {
     blockTimeSeconds: config.chain.blockTimeSeconds,
     protocolVersion: config.chain.protocolVersion,
     economicsVersion: config.chain.economicsVersion,
+    genesisOperatorAddress: config.mining?.genesisOperatorAddress || config.mining?.proposerAddress || '',
+    genesisFreeBlocks: Number(config.mining?.genesisFreeBlocks ?? 100),
     createdAt: new Date().toISOString()
   };
   const genesisHash = computeGenesisHash(genesis);

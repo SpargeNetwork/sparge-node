@@ -18,6 +18,7 @@ let walletActivityPage = 1;
 let addressTxEntries = [];
 let addressTxLimit = 25;
 let addressTxFilter = 'all';
+let participantPending = false;
 
 const blocksTable = document.getElementById('blocksTable');
 const pagerTop = document.getElementById('pagerTop');
@@ -53,6 +54,9 @@ const devWalletPanel = document.getElementById('devWalletPanel');
 const devWalletStatus = document.getElementById('devWalletStatus');
 const createWalletBtn = document.getElementById('createWalletBtn');
 const clearWalletBtn = document.getElementById('clearWalletBtn');
+const exportWalletBtn = document.getElementById('exportWalletBtn');
+const importWalletBtn = document.getElementById('importWalletBtn');
+const importWalletFile = document.getElementById('importWalletFile');
 const walletAddressEl = document.getElementById('walletAddress');
 const walletPublicKeyEl = document.getElementById('walletPublicKey');
 const walletPrivateKeyEl = document.getElementById('walletPrivateKey');
@@ -486,7 +490,7 @@ function renderStats(state) {
       value: `${mintTokens} ${state.symbol}`,
       sub: 'Based on 14-day rolling average (>= 1,000 SPRG)',
       list: [
-        ['Block Producer', `${split.producer} ${state.symbol}`],
+        ['Participants', `${split.producer} ${state.symbol}`],
         ['Node Holders', `${split.node} ${state.symbol}`],
         ['Treasury', `${split.treasury} ${state.symbol}`],
         ['Eligible Holders', `${split.holder} ${state.symbol}`]
@@ -595,7 +599,7 @@ function renderBlockDetails(block) {
     ['Prev Hash', block.prevHash],
     ['Prev State Root', block.prevStateRoot ?? '-'],
     ['State Root', block.stateRoot ?? '-'],
-    ['Proposer', addressLink(block.rewardTo || latestChainState?.proposerAddress)],
+    ['Producer', addressLink(block.rewardTo || latestChainState?.proposerAddress)],
     ['Participant Rewards', participantSummary],
     ['Chain ID', header.chainId ?? block.chainId ?? '-'],
     ['Protocol Version', header.protocolVersion ?? block.protocolVersion ?? '-'],
@@ -731,7 +735,22 @@ function renderTxPage(tx, state, errorMessage) {
   const type = (tx.type || 'transfer').toLowerCase();
   const confirmed = tx.blockHeight !== undefined && tx.blockHeight !== null;
   const statusLabel = confirmed ? 'Confirmed' : 'Pending';
-  const typeLabel = ['transfer', 'register_participant', 'unregister_participant', 'heartbeat', 'participant_reward', 'holder_reward', 'node_reward', 'treasury_reward'].includes(type)
+  const typeLabel = [
+    'transfer',
+    'register_participant',
+    'unregister_participant',
+    'heartbeat',
+    'participant_reward',
+    'holder_reward',
+    'node_reward',
+    'treasury_reward',
+    'node_pool_accrual',
+    'holder_pool_accrual',
+    'node_leftover',
+    'holder_leftover',
+    'node_empty',
+    'holder_empty'
+  ].includes(type)
     ? type
     : 'unknown';
   const blockHeight = confirmed ? tx.blockHeight : null;
@@ -811,6 +830,12 @@ function renderTxPage(tx, state, errorMessage) {
           ? 'Node pool'
           : 'Treasury';
     amountRows.push(['Reward source', source]);
+  } else if (type.endsWith('_accrual')) {
+    amountRows.push(['Pool accrual', amount]);
+    const source = type === 'node_pool_accrual'
+      ? 'Node pool'
+      : 'Holder pool';
+    amountRows.push(['Pool target', source]);
   } else {
     amountRows.push(['Amount', amount]);
     amountRows.push(['Fee paid', fee]);
@@ -820,7 +845,11 @@ function renderTxPage(tx, state, errorMessage) {
   if (txParticipationEl) {
     const participationRows = [];
     if (type === 'register_participant') {
-      participationRows.push(['Bond locked', '50,000 SPRG']);
+      if (tx.bondMicro !== undefined && tx.bondMicro !== null) {
+        participationRows.push(['Bond locked', `${formatTokenAmount(tx.bondMicro, decimals, 6)} ${symbol}`.trim()]);
+      } else {
+        participationRows.push(['Bond locked', `${formatTokenAmount('50000000000', decimals, 6)} ${symbol}`.trim()]);
+      }
     }
     if (type === 'unregister_participant') {
       participationRows.push(['Bond released', 'Yes']);
@@ -902,7 +931,7 @@ function renderAddressDetails(data, errorMessage) {
     badges.push('<span class="badge">Treasury</span>');
   }
   if (latestChainState?.proposerAddress && data.address === latestChainState.proposerAddress) {
-    badges.push('<span class="badge">Proposer</span>');
+    badges.push('<span class="badge">Producer</span>');
   }
   const balanceDisplay = `${formatTokenAmount(data.balanceMicro ?? '0', decimals, 6)} ${symbol}`;
   const avgBalanceDisplay = `${formatTokenAmount(data.avgBalanceMicro ?? '0', decimals, 6)} ${symbol}`;
@@ -982,7 +1011,7 @@ function renderAddressPage(address, stats, txs, state) {
   const shortAddr = shortAddress(address);
   const badges = [];
   if (state?.treasuryAddress && address === state.treasuryAddress) badges.push('<span class="badge">Treasury</span>');
-  if (state?.proposerAddress && address === state.proposerAddress) badges.push('<span class="badge">Proposer</span>');
+  if (state?.proposerAddress && address === state.proposerAddress) badges.push('<span class="badge">Producer</span>');
   const participantStatus = stats.participant ? stats.participant.status : 'Not registered';
   const participantBadgeClass = participantStatus === 'active'
     ? 'badge active'
@@ -1346,9 +1375,22 @@ async function refreshWalletContext() {
   const minFeeMicro = BigInt(status.minFeeMicro ?? '0');
   const initialFeeMicro = baseFeeMicro > minFeeMicro ? baseFeeMicro : minFeeMicro;
   const initialFeeTokens = formatTokenAmount(initialFeeMicro.toString(), decimals, 6);
-  if (txFeeInput && !txFeeInput.value) txFeeInput.value = initialFeeTokens;
+  const freeEligible = walletState
+    && status.genesisOperatorAddress
+    && walletState.address === status.genesisOperatorAddress
+    && !status.genesisFreeUsed
+    && Number(status.latestHeight ?? 0) < Number(status.genesisFreeBlocks ?? 0);
+  if (txFeeInput) {
+    if (freeEligible && (!txFeeInput.value || txFeeInput.value === initialFeeTokens)) {
+      txFeeInput.value = '0';
+    } else if (!txFeeInput.value) {
+      txFeeInput.value = initialFeeTokens;
+    }
+  }
   if (txFeeHint) {
-    txFeeHint.innerHTML = `Minimum fee: ${walletAmountHtml(minFeeMicro.toString(), decimals)}`;
+    txFeeHint.innerHTML = freeEligible
+      ? `Genesis registration: fee can be 0 until block ${status.genesisFreeBlocks ?? 0}`
+      : `Minimum fee: ${walletAmountHtml(minFeeMicro.toString(), decimals)}`;
   }
 }
 
@@ -1368,7 +1410,7 @@ function maybeLoadAddressFromQuery() {
 }
 
 function getTxIdFromPath() {
-  const match = window.location.pathname.match(/^\/tx\/([a-fA-F0-9]+)$/);
+  const match = window.location.pathname.match(/^\/tx\/([^/]+)$/);
   return match ? match[1] : null;
 }
 
@@ -1487,6 +1529,46 @@ function saveWalletToStorage(wallet) {
   localStorage.setItem('sparge_dev_wallet', JSON.stringify(wallet));
 }
 
+function exportWalletToFile(wallet) {
+  if (!wallet) return;
+  const payload = {
+    address: wallet.address,
+    publicKeyHex: wallet.publicKeyHex,
+    privateKeyHex: wallet.privateKeyHex
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `sparge-wallet-${wallet.address || 'export'}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function importWalletFromJson(json) {
+  const wallet = {
+    address: String(json.address || ''),
+    publicKeyHex: String(json.publicKeyHex || ''),
+    privateKeyHex: String(json.privateKeyHex || '')
+  };
+  if (!wallet.address.startsWith('spg_')) {
+    throw new Error('Invalid wallet address.');
+  }
+  if (!wallet.publicKeyHex || wallet.publicKeyHex.length !== 64) {
+    throw new Error('Invalid publicKeyHex.');
+  }
+  if (!wallet.privateKeyHex || wallet.privateKeyHex.length !== 64) {
+    throw new Error('Invalid privateKeyHex.');
+  }
+  saveWalletToStorage(wallet);
+  walletState = wallet;
+  renderWallet();
+  refreshWalletState();
+  renderWalletActivity();
+}
+
 function clearWalletStorage() {
   localStorage.removeItem('sparge_dev_wallet');
 }
@@ -1586,12 +1668,16 @@ async function refreshWalletState() {
     if (participantStatusEl) {
       const participant = stats.participant;
       if (participant) {
-        participantStatusEl.textContent = participant.status === 'active' ? 'Active' : 'Inactive';
+        const isActive = participant.status === 'active';
+        const label = isActive ? 'Active' : 'Inactive';
+        participantStatusEl.textContent = label;
         if (participantBadgeEl) {
-          participantBadgeEl.textContent = participant.status === 'active' ? 'Active' : 'Inactive';
-          participantBadgeEl.classList.toggle('active', participant.status === 'active');
-          participantBadgeEl.classList.toggle('inactive', participant.status !== 'active');
+          participantBadgeEl.textContent = label;
+          participantBadgeEl.classList.toggle('active', isActive);
+          participantBadgeEl.classList.toggle('inactive', !isActive);
+          participantBadgeEl.classList.toggle('pending', false);
         }
+        participantPending = false;
         if (participantBondEl) {
           participantBondEl.innerHTML = walletAmountHtml(participant.bondMicro, decimals);
         }
@@ -1609,10 +1695,21 @@ async function refreshWalletState() {
           participationTabBtn.classList.toggle('highlight', participant.status !== 'active');
         }
       } else {
-        participantStatusEl.textContent = '-';
-        if (participantBadgeEl) {
-          participantBadgeEl.textContent = '-';
-          participantBadgeEl.classList.remove('active', 'inactive');
+        if (participantPending) {
+          participantStatusEl.textContent = 'Pending';
+          if (participantBadgeEl) {
+            participantBadgeEl.textContent = 'Pending';
+            participantBadgeEl.classList.remove('active', 'inactive');
+            participantBadgeEl.classList.add('pending');
+          }
+        } else {
+          participantStatusEl.textContent = 'Inactive';
+          if (participantBadgeEl) {
+            participantBadgeEl.textContent = 'Inactive';
+            participantBadgeEl.classList.remove('active');
+            participantBadgeEl.classList.add('inactive');
+            participantBadgeEl.classList.remove('pending');
+          }
         }
         if (participantBondEl) participantBondEl.textContent = '-';
         if (participantSponsorEl) participantSponsorEl.textContent = '-';
@@ -1760,6 +1857,9 @@ async function pollTxMined(txid) {
       const tx = await res.json();
       const height = tx.blockHeight !== undefined && tx.blockHeight !== null ? tx.blockHeight : '?';
       sendTxStatus.innerHTML = `Mined in block <a class="tx-link" href="/block/${height}">${height}</a> · <a class="tx-link" href="/tx/${txid}">${txid}</a>`;
+      if (tx.type === 'register_participant') {
+        participantPending = false;
+      }
       refreshWalletState();
       renderWalletActivity();
       return;
@@ -1920,10 +2020,18 @@ async function registerParticipant() {
     const status = await fetch('/api/status').then((r) => r.json());
     const chainId = status.chainId;
     const decimals = Number(status.decimals ?? 6);
-    const feeValue = txFeeInput.value.trim();
-    const feeMicro = parseTokenToMicro(feeValue, decimals);
+    let feeValue = txFeeInput.value.trim();
     const minFeeMicro = BigInt(status.minFeeMicro ?? '0');
-    if (BigInt(feeMicro) < minFeeMicro) {
+    const freeEligible = status.genesisOperatorAddress
+      && walletState.address === status.genesisOperatorAddress
+      && !status.genesisFreeUsed
+      && Number(status.latestHeight ?? 0) < Number(status.genesisFreeBlocks ?? 0);
+    if (freeEligible) {
+      feeValue = '0';
+      if (txFeeInput) txFeeInput.value = '0';
+    }
+    const feeMicro = parseTokenToMicro(feeValue, decimals);
+    if (!freeEligible && BigInt(feeMicro) < minFeeMicro) {
       throw new Error(`Fee must be at least ${formatTokenAmount(minFeeMicro.toString(), decimals, 6)} ${status.symbol ?? ''}`);
     }
     const nonceRes = await fetch(`/api/nonce/${walletState.address}`).then((r) => r.json());
@@ -1954,6 +2062,8 @@ async function registerParticipant() {
     if (!res.ok) {
       throw new Error(result.error || 'Unable to register participant.');
     }
+    participantPending = true;
+    refreshWalletState();
     sendTxStatus.textContent = `Participant registration pending… TxID ${txid}`;
     await pollTxMined(txid);
   } catch (err) {
@@ -2158,6 +2268,34 @@ if (clearWalletBtn) {
     renderWallet();
   });
 }
+if (exportWalletBtn) {
+  exportWalletBtn.addEventListener('click', () => {
+    if (!walletState) {
+      sendTxStatus.textContent = 'Create or import a wallet first.';
+      return;
+    }
+    exportWalletToFile(walletState);
+  });
+}
+if (importWalletBtn && importWalletFile) {
+  importWalletBtn.addEventListener('click', () => {
+    importWalletFile.click();
+  });
+  importWalletFile.addEventListener('change', async (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      importWalletFromJson(json);
+      sendTxStatus.textContent = 'Wallet imported.';
+    } catch (err) {
+      sendTxStatus.textContent = err.message || 'Failed to import wallet.';
+    } finally {
+      importWalletFile.value = '';
+    }
+  });
+}
 if (togglePublicKeyBtn) {
   togglePublicKeyBtn.addEventListener('click', () => {
     walletPublicKeyEl.classList.toggle('hidden');
@@ -2313,7 +2451,7 @@ if (window.location.pathname.startsWith('/block/')) {
 }
 
 if (window.location.pathname.startsWith('/tx/')) {
-  const match = window.location.pathname.match(/^\/tx\/([a-fA-F0-9]+)/);
+  const match = window.location.pathname.match(/^\/tx\/([^/]+)/);
   if (match) {
     Promise.all([fetchState(), fetchTxById(match[1])]).then(([state, tx]) => {
       latestChainState = state;

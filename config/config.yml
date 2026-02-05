@@ -7,16 +7,21 @@
   economicsVersion: "1.0.0"
 
 token:
-  decimals: 6
+  decimals: 9
   initialSupplyTokens: "5100000000"
 
 mining:
-  proposerAddress: "spg_YR8kUueUzG6fZ99amBQGz9nZKEs"
+  proposerAddress: "spg_3D9sm1pyziUMXCkqYaJML3KJRpPd"
+  genesisOperatorAddress: "spg_2B4XVJv4GzPNCeP5ECCVPEB7AWX9"
+  genesisFreeBlocks: 100
 
 rewards:
-  treasuryAddress: "TREASURY"
+  treasuryAddress: "spg_ojsJmWnCUdu8t4VWjU4CmiZkYPn"
+  nodePoolAddress: "spg_PHxAiV4Tp2VwPN3QHhGt7R7JXzQ"
+  holderPoolAddress: "spg_3iq23T44YH5YKu4kqdrVwb9aaE34"
 
 storage:
+  backend: sqlite
   blocksPerFile: 510
 
 gas:

@@ -4,6 +4,7 @@ const { loadConfig } = require('./lib/config');
 const { createBlockchain } = require('./lib/blockchain');
 const { createMiner } = require('./lib/miner');
 const { createMempool } = require('./lib/mempool');
+const { createStorage } = require('./storage');
 const { blocksRouter } = require('./routes/blocks');
 const { miningRouter } = require('./routes/mining');
 const { mempoolRouter } = require('./routes/mempool');
@@ -13,7 +14,8 @@ const { debugRouter } = require('./routes/debug');
 const app = express();
 const config = loadConfig();
 const mempool = createMempool(config);
-const blockchain = createBlockchain(config, mempool);
+const storage = createStorage(path.join(__dirname, 'data'), config);
+const blockchain = createBlockchain(config, mempool, storage);
 const miner = createMiner(blockchain, config);
 
 app.use(express.json());

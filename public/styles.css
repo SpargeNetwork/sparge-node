@@ -515,8 +515,14 @@ tbody tr.selected {
 }
 
 .badge.inactive {
-  background: rgba(244, 184, 96, 0.14);
-  border-color: rgba(244, 184, 96, 0.35);
+  background: rgba(243, 112, 112, 0.14);
+  border-color: rgba(243, 112, 112, 0.35);
+  color: var(--error);
+}
+
+.badge.pending {
+  background: rgba(244, 184, 96, 0.18);
+  border-color: rgba(244, 184, 96, 0.5);
   color: var(--warning);
 }
 

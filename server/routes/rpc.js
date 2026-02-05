@@ -149,12 +149,6 @@ function rpcRouter(blockchain, mempool, config) {
     const amount = BigInt(tx.amountMicro || '0');
     const fee = BigInt(tx.feeMicro || '0');
 
-    const minFee = BigInt(config.tx?.minFeeMicro ?? config.gas?.baseFeeInitialMicro ?? '0');
-    if (fee < minFee) {
-      res.status(400).json({ error: `feeMicro must be >= ${minFee.toString()}` });
-      return;
-    }
-
     if (tx.type === 'transfer') {
       if (!tx.from || !tx.to) {
         res.status(400).json({ error: 'from/to required' });
@@ -185,6 +179,7 @@ function rpcRouter(blockchain, mempool, config) {
 
     let feePayer = signerAddress;
     let bondMicro = 0n;
+    let isGenesisFree = false;
     if (tx.type === 'register_participant') {
       if (!tx.participant) {
         res.status(400).json({ error: 'participant required' });
@@ -193,6 +188,14 @@ function rpcRouter(blockchain, mempool, config) {
       if (tx.sponsor && tx.sponsor !== tx.from) {
         res.status(400).json({ error: 'sponsor must match from' });
         return;
+      }
+      const genesisCtx = blockchain.getGenesisFreeContext ? blockchain.getGenesisFreeContext() : null;
+      if (genesisCtx && genesisCtx.genesisOperatorAddress) {
+        const withinFreeWindow = genesisCtx.latestHeight < Number(genesisCtx.genesisFreeBlocks || 0);
+        isGenesisFree = !genesisCtx.genesisFreeUsed
+          && withinFreeWindow
+          && tx.from === genesisCtx.genesisOperatorAddress
+          && tx.participant === tx.from;
       }
       const existing = blockchain.getParticipantRecord(tx.participant);
       if (existing) {
@@ -204,7 +207,7 @@ function rpcRouter(blockchain, mempool, config) {
         res.status(400).json({ error: 'sponsor limit reached' });
         return;
       }
-      bondMicro = PARTICIPANT_BOND_MICRO;
+      bondMicro = isGenesisFree ? 0n : PARTICIPANT_BOND_MICRO;
     } else if (tx.type === 'unregister_participant' || tx.type === 'heartbeat') {
       if (tx.sponsor) {
         res.status(400).json({ error: 'sponsor must be empty for this tx type' });
@@ -219,6 +222,12 @@ function rpcRouter(blockchain, mempool, config) {
         res.status(400).json({ error: 'participant not registered' });
         return;
       }
+    }
+
+    const minFee = BigInt(config.tx?.minFeeMicro ?? config.gas?.baseFeeInitialMicro ?? '0');
+    if (!isGenesisFree && fee < minFee) {
+      res.status(400).json({ error: `feeMicro must be >= ${minFee.toString()}` });
+      return;
     }
 
     const balance = BigInt(blockchain.getBalanceUnits(feePayer));
