@@ -14,7 +14,7 @@ Signed message string:
 type|chainId|from|to|amountMicro|feeMicro|nonce|publicKeyHex|sponsor|participant|memo?
 ```
 
-- Fields are UTF‑8 strings with `|` separators.
+- Fields are UTF-8 strings with `|` separators.
 - All numeric fields are decimal strings.
 - `memo` is optional, max 128 chars.
 
@@ -22,3 +22,15 @@ type|chainId|from|to|amountMicro|feeMicro|nonce|publicKeyHex|sponsor|participant
 
 `txid = sha256(utf8(message))`
 
+## Transaction Types
+
+- transfer
+- register_participant
+- unregister_participant
+- heartbeat
+- participant_reward
+- holder_reward
+- node_reward
+- treasury_reward
+- node_pool_accrual
+- holder_pool_accrual

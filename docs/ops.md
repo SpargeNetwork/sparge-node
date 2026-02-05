@@ -18,11 +18,8 @@ POST /api/mining/stop
 Remove chain data and restart:
 
 - `server/data/genesis.json`
-- `server/data/ledger.json`
-- `server/data/meta.json`
-- `server/data/blocks_*.json`
+- `server/data/state.db`
 
 ## Config
 
 Main config file: `config/config.yml`
-

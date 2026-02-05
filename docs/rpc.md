@@ -6,6 +6,11 @@ Base path: `/api`
 
 `GET /status`
 
+Includes (selected):
+- `genesisOperatorAddress`, `genesisFreeBlocks`, `genesisFreeUsed`
+- `producerAddress`, `treasuryAddress`, `nodePoolAddress`, `holderPoolAddress`
+- `decimals`, `baseFeeMicro`, `minFeeMicro`
+
 ## Balance / Nonce
 
 `GET /balance/:addr`  
@@ -31,4 +36,3 @@ Body includes:
 type, chainId, from, to, amountMicro, feeMicro, nonce,
 publicKeyHex, signatureHex, sponsor, participant, memo
 ```
-
