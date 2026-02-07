@@ -19,6 +19,12 @@ let addressTxEntries = [];
 let addressTxLimit = 25;
 let addressTxFilter = 'all';
 let participantPending = false;
+let latestBlocks = [];
+let observerLogEntries = [];
+let observerStartMs = Date.now();
+let observerLastHeight = null;
+let observerLastSyncState = null;
+let observerLastError = null;
 
 const blocksTable = document.getElementById('blocksTable');
 const pagerTop = document.getElementById('pagerTop');
@@ -50,6 +56,15 @@ const addressTxPager = document.getElementById('addressTxPager');
 const addressLoadMoreBtn = document.getElementById('addressLoadMore');
 const addressFilterTabs = document.querySelectorAll('.address-tabs .tab-btn');
 const addressCopyToast = document.getElementById('addressCopyToast');
+const observerSyncPanel = document.getElementById('observerSyncPanel');
+const observerTxList = document.getElementById('observerTxList');
+const observerStatusBadgeEl = document.getElementById('observerStatusBadge');
+const observerSyncedHeightEl = document.getElementById('observerSyncedHeight');
+const observerProducerHeightEl = document.getElementById('observerProducerHeight');
+const observerLagBlocksEl = document.getElementById('observerLagBlocks');
+const observerProducerUrlEl = document.getElementById('observerProducerUrl');
+const observerStatePanel = document.getElementById('observerStatePanel');
+const observerLogFeed = document.getElementById('observerLogFeed');
 const devWalletPanel = document.getElementById('devWalletPanel');
 const devWalletStatus = document.getElementById('devWalletStatus');
 const createWalletBtn = document.getElementById('createWalletBtn');
@@ -522,12 +537,12 @@ function renderStats(state) {
   ];
   const sectionC = [
     {
-      label: tooltip('Accumulated Rewards (Not Yet Paid)', 'Pools that accumulate until the 14‑day payout.'),
+      label: tooltip('Accumulated Rewards (Not Yet Paid)', 'Pools that accumulate until the 14-day payout.'),
       value: `${pools.node} ${state.symbol}`,
       sub: `Holders pool: ${pools.holder} ${state.symbol}`
     },
     {
-      label: tooltip('Next Rewards Payout', 'Rewards are paid out every 14 days to reduce on‑chain noise.'),
+      label: tooltip('Next Rewards Payout', 'Rewards are paid out every 14 days to reduce on-chain noise.'),
       value: `~${toDays(state.blocksUntilPayout ?? 0, state.blockTimeSeconds)} (${formatNumber(state.blocksUntilPayout ?? 0)} blocks)`
     }
   ];
@@ -551,6 +566,183 @@ function renderStats(state) {
     renderSection('Network Overview', sectionB),
     renderSection('Reward Cycle', sectionC, true)
   ].join('');
+}
+
+function shortenUrl(url) {
+  if (!url) return '-';
+  if (url.length <= 38) return url;
+  return `${url.slice(0, 24)}...${url.slice(-10)}`;
+}
+
+function formatObserverUptime(ms) {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
+function observerStateRow(label, value) {
+  return `<div class="observer-state-row"><span class="k">${label}</span><span class="v">${value}</span></div>`;
+}
+
+function pushObserverLog(level, message) {
+  if (!observerLogFeed || !message) return;
+  const ts = new Date().toLocaleTimeString('nl-NL', { hour12: false });
+  observerLogEntries.push({ level, message, ts });
+  if (observerLogEntries.length > 240) observerLogEntries = observerLogEntries.slice(-240);
+  observerLogFeed.innerHTML = observerLogEntries.map((entry) => {
+    const cls = entry.level === 'error' ? 'err' : entry.level === 'warn' ? 'warn' : 'ok';
+    return `<span class="observer-log-line ${cls}">[${entry.ts}] ${entry.message}</span>`;
+  }).join('');
+  observerLogFeed.scrollTop = observerLogFeed.scrollHeight;
+}
+
+function renderObserverNodeDashboard(state) {
+  if (!state) return;
+  const statusHeight = Number(state.syncedHeight ?? 0);
+  const chainHeight = Number(latestChainState?.latestHeight ?? 0);
+  const blockHeight = Number(latestBlocks?.[0]?.height ?? 0);
+  const syncedHeight = Math.max(statusHeight, chainHeight, blockHeight);
+  const rawProducerHeight = state.producerHeight === null || state.producerHeight === undefined
+    ? syncedHeight
+    : Number(state.producerHeight ?? 0);
+  const producerHeight = Number.isFinite(rawProducerHeight) ? formatNumber(rawProducerHeight) : '-';
+  const lagBlocks = Number(state.lagBlocks ?? 0);
+  let syncState = state.syncState || 'syncing';
+  if (!state.lastSyncError && lagBlocks === 0 && syncedHeight > 0) {
+    syncState = 'synced';
+  }
+  const syncClass = syncState === 'synced' ? 'synced' : syncState === 'error' ? 'error' : 'syncing';
+  const producerUrl = state.producerUrl || '-';
+  const lastSyncAt = state.lastSyncAt ? new Date(state.lastSyncAt).toLocaleString() : '-';
+  const stateRootCandidate = latestBlocks?.[0]?.stateRoot || '-';
+  const dbPath = '%APPDATA%\\SpargeObserver\\data\\state.db';
+
+  if (observerStatusBadgeEl) {
+    observerStatusBadgeEl.textContent = syncState.toUpperCase();
+    observerStatusBadgeEl.className = `observer-pill ${syncClass}`;
+  }
+  if (observerSyncedHeightEl) observerSyncedHeightEl.textContent = formatNumber(syncedHeight);
+  if (observerProducerHeightEl) observerProducerHeightEl.textContent = producerHeight;
+  if (observerLagBlocksEl) observerLagBlocksEl.textContent = formatNumber(lagBlocks);
+  if (observerProducerUrlEl) {
+    observerProducerUrlEl.textContent = shortenUrl(producerUrl);
+    observerProducerUrlEl.title = producerUrl;
+  }
+
+  if (observerStatePanel) {
+    observerStatePanel.innerHTML = [
+      observerStateRow('Node mode', state.nodeMode || 'observer'),
+      observerStateRow('Uptime', formatObserverUptime(Date.now() - observerStartMs)),
+      observerStateRow('Current height', formatNumber(syncedHeight)),
+      observerStateRow('State root', shortHash(stateRootCandidate)),
+      observerStateRow('Database path', dbPath),
+      observerStateRow('Last sync time', lastSyncAt)
+    ].join('');
+  }
+
+  if (observerLogEntries.length === 0) {
+    pushObserverLog('warn', `Observer connected to ${producerUrl}`);
+  }
+
+  if (observerLastSyncState !== syncState) {
+    pushObserverLog(syncState === 'error' ? 'error' : syncState === 'synced' ? 'ok' : 'warn', `Sync state changed to ${syncState.toUpperCase()}`);
+    observerLastSyncState = syncState;
+  }
+  if (observerLastHeight === null) {
+    observerLastHeight = syncedHeight;
+    if (syncedHeight > 0) pushObserverLog('ok', `Validated block #${syncedHeight}`);
+  } else if (syncedHeight > observerLastHeight) {
+    if (syncedHeight - observerLastHeight > 1) {
+      pushObserverLog('warn', `Sync batch ${observerLastHeight + 1}-${syncedHeight}`);
+    }
+    pushObserverLog('ok', `Validated block #${syncedHeight}`);
+    pushObserverLog('ok', 'StateRoot OK');
+    observerLastHeight = syncedHeight;
+  }
+  if (state.lastSyncError && state.lastSyncError !== observerLastError) {
+    pushObserverLog('error', state.lastSyncError);
+    observerLastError = state.lastSyncError;
+  }
+}
+
+function renderObserverSync(state) {
+  const hasObserverConsole = Boolean(observerStatusBadgeEl || observerLogFeed || observerStatePanel);
+  const isObserverLike = state && (state.nodeMode === 'observer' || hasObserverConsole);
+
+  if (!isObserverLike) {
+    if (observerSyncPanel) observerSyncPanel.innerHTML = '<div class="detail-empty">Observer mode inactive.</div>';
+    return;
+  }
+  const syncState = state.syncState || 'syncing';
+  const badgeClass = syncState === 'synced' ? 'badge success' : syncState === 'error' ? 'badge error' : 'badge warning';
+  const lastSyncAt = state.lastSyncAt ? new Date(state.lastSyncAt).toLocaleString() : '-';
+  if (observerSyncPanel) {
+    observerSyncPanel.innerHTML = [
+      panelRow('State', `<span class="${badgeClass}">${syncState}</span>`),
+      panelRow('Synced Height', formatNumber(state.syncedHeight ?? 0)),
+      panelRow('Producer Height', state.producerHeight === null ? '-' : formatNumber(state.producerHeight)),
+      panelRow('Lag Blocks', formatNumber(state.lagBlocks ?? 0)),
+      panelRow('Producer URL', state.producerUrl || '-'),
+      panelRow('Last Sync', lastSyncAt),
+      state.lastSyncError ? panelRow('Last Error', `<span class="muted">${state.lastSyncError}</span>`) : ''
+    ].filter(Boolean).join('');
+  }
+
+  renderObserverNodeDashboard(state);
+}
+
+function renderObserverTxList(state) {
+  if (!observerTxList) return;
+  const decimals = Number(state?.decimals ?? 6);
+  const rows = [];
+  for (const block of latestBlocks || []) {
+    const txs = normalizeTxList(block);
+    for (const tx of txs) {
+      rows.push({
+        txid: tx.txid || tx.id,
+        height: block.height,
+        type: tx.type || 'transfer',
+        amount: tx.amountMicro ?? '0',
+        timestamp: tx.timestamp || block.timestamp
+      });
+    }
+    if (rows.length >= 10) break;
+  }
+  const list = rows.slice(0, 10);
+  if (!list.length) {
+    observerTxList.innerHTML = '<div class="detail-empty">No transactions yet.</div>';
+    return;
+  }
+  observerTxList.innerHTML = `
+    <table class="tx-table">
+      <thead>
+        <tr>
+          <th>Txid</th>
+          <th>Height</th>
+          <th>Type</th>
+          <th>Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${list.map((tx) => `
+          <tr data-txid="${tx.txid}">
+            <td>${shortHash(tx.txid)}</td>
+            <td>${tx.height}</td>
+            <td>${tx.type}</td>
+            <td>${formatTokenAmount(tx.amount, decimals)} ${state?.symbol ?? ''}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+  observerTxList.querySelectorAll('tr[data-txid]').forEach((row) => {
+    row.addEventListener('click', () => {
+      const txid = row.dataset.txid;
+      if (txid) window.location.href = `/tx/${txid}`;
+    });
+  });
 }
 
 function renderBlockDetails(block) {
@@ -1289,6 +1481,7 @@ async function refreshBlocks() {
   if (!blocksTable) return;
   const data = await fetchBlocks(currentPage);
   totalBlocks = data.total;
+  latestBlocks = Array.isArray(data.blocks) ? data.blocks : [];
   renderBlocks(data.blocks);
   renderPager();
   highlightSelectedRow();
@@ -1309,6 +1502,8 @@ async function refreshAll() {
     renderPanels();
     renderStats(state);
     await refreshBlocks();
+    renderObserverSync(status);
+    renderObserverTxList(state);
     await updateMiningStatus();
 
     const txid = getTxIdFromPath();

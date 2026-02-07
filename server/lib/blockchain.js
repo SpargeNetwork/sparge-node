@@ -14,8 +14,13 @@ function sha256(input) {
   return crypto.createHash('sha256').update(input).digest('hex');
 }
 
-function createGenesisBlock(config, genesisHash) {
-  const timestamp = new Date().toISOString();
+function cloneLedgerSnapshot(ledger) {
+  return JSON.parse(JSON.stringify(ledger || {}));
+}
+
+function createGenesisBlock(config, genesisHash, genesis) {
+  // Genesis block must be deterministic across producer/observer nodes.
+  const timestamp = genesis?.createdAt || '1970-01-01T00:00:00.000Z';
   const payload = {
     chain: config.chain.name,
     message: 'Genesis block'
@@ -57,8 +62,8 @@ function createGenesisBlock(config, genesisHash) {
   };
 }
 
-function createBlockchain(config, mempool, storage) {
-  const dataDir = path.join(__dirname, '..', 'data');
+function createBlockchain(config, mempool, storage, dataDirOverride) {
+  const dataDir = dataDirOverride || path.join(__dirname, '..', 'data');
   const { genesis, genesisHash } = ensureGenesis(dataDir, config);
   const genesisOperatorAddress = genesis.genesisOperatorAddress || config.mining?.genesisOperatorAddress || config.mining?.proposerAddress || '';
   const genesisFreeBlocks = Number(genesis.genesisFreeBlocks ?? config.mining?.genesisFreeBlocks ?? 100);
@@ -95,7 +100,7 @@ function createBlockchain(config, mempool, storage) {
   validateGenesis(config, genesis, genesisHash, blocks);
 
   if (!blocks.length) {
-    const genesisBlock = createGenesisBlock(config, genesisHash);
+    const genesisBlock = createGenesisBlock(config, genesisHash, genesis);
     blocks = [genesisBlock];
     meta = {
       ...meta,
@@ -145,6 +150,19 @@ function createBlockchain(config, mempool, storage) {
   if (meta.genesisFreeUsed === undefined || meta.genesisFreeUsed === null) meta.genesisFreeUsed = '0';
   storage.saveMeta(meta);
 
+  const nodeMode = config.node?.mode || 'producer';
+  const producerUrl = config.node?.producerUrl || '';
+  let syncStatus = {
+    nodeMode,
+    producerUrl,
+    syncedHeight: Number(meta.latestHeight || 0),
+    producerHeight: nodeMode === 'producer' ? Number(meta.latestHeight || 0) : null,
+    lagBlocks: 0,
+    syncState: nodeMode === 'observer' ? 'syncing' : 'synced',
+    lastSyncError: null,
+    lastSyncAt: null
+  };
+
   function getState() {
     const blocks = storage.getAllBlocks();
     const latest = blocks.length ? blocks[blocks.length - 1] : null;
@@ -163,6 +181,16 @@ function createBlockchain(config, mempool, storage) {
     const blocksUntilPayout = sincePayout >= blocksPer14Days
       ? 0
       : Number(blocksPer14Days - sincePayout);
+    const listenPort = Number(process.env.PORT || 3051);
+    const syncedHeight = nodeMode === 'observer'
+      ? Number(syncStatus.syncedHeight ?? meta.latestHeight ?? 0)
+      : Number(meta.latestHeight ?? 0);
+    const producerHeight = nodeMode === 'observer'
+      ? (syncStatus.producerHeight ?? null)
+      : Number(meta.latestHeight ?? 0);
+    const lagBlocks = nodeMode === 'observer' && producerHeight !== null
+      ? Math.max(0, Number(producerHeight) - syncedHeight)
+      : 0;
     return {
       chainId: config.chain.chainId,
       protocolVersion: config.chain.protocolVersion,
@@ -214,6 +242,15 @@ function createBlockchain(config, mempool, storage) {
         holder: meta.holderPoolUnits || '0'
       },
       blocksUntilPayout,
+      listenPort,
+      nodeMode,
+      producerUrl: producerUrl || null,
+      syncedHeight,
+      producerHeight,
+      lagBlocks,
+      syncState: nodeMode === 'observer' ? (syncStatus.syncState || 'syncing') : 'synced',
+      lastSyncError: nodeMode === 'observer' ? (syncStatus.lastSyncError || null) : null,
+      lastSyncAt: nodeMode === 'observer' ? (syncStatus.lastSyncAt || null) : null,
       gasTarget,
       gasBlockLimit
     };
@@ -339,6 +376,182 @@ function createBlockchain(config, mempool, storage) {
 
   function getBlocks(offset, limit) {
     return storage.getBlocksPage(offset, limit);
+  }
+
+  function getBlocksFromHeight(startHeight, limit) {
+    return storage.getBlocksFromHeight(startHeight, limit);
+  }
+
+  function getLatestHeight() {
+    return Number(meta.latestHeight || 0);
+  }
+
+  function setSyncStatus(update) {
+    syncStatus = { ...syncStatus, ...update };
+  }
+
+  function applyExternalBlock(block) {
+    if (!block) return { ok: false, error: 'missing block' };
+    const expectedHeight = Number(meta.latestHeight || 0) + 1;
+    if (Number(block.height) !== expectedHeight) {
+      return { ok: false, error: `height mismatch (expected ${expectedHeight})` };
+    }
+    if (block.chainId !== config.chain.chainId) {
+      return { ok: false, error: 'chainId mismatch' };
+    }
+    if (block.genesisHash !== genesisHash) {
+      return { ok: false, error: 'genesisHash mismatch' };
+    }
+    if (block.protocolVersion !== config.chain.protocolVersion) {
+      return { ok: false, error: 'protocolVersion mismatch' };
+    }
+    if (block.economicsVersion !== config.chain.economicsVersion) {
+      return { ok: false, error: 'economicsVersion mismatch' };
+    }
+    if (block.prevHash !== meta.latestHash) {
+      return { ok: false, error: 'prevHash mismatch' };
+    }
+
+    const currentStateRoot = calculateStateRoot(ledger);
+    if (block.prevStateRoot && block.prevStateRoot !== currentStateRoot) {
+      return { ok: false, error: 'prevStateRoot mismatch' };
+    }
+
+    if (!block.header) {
+      return { ok: false, error: 'missing header' };
+    }
+    let header;
+    try {
+      header = JSON.parse(block.header);
+    } catch {
+      return { ok: false, error: 'invalid header' };
+    }
+    const computedHash = sha256(block.header);
+    if (computedHash !== block.hash) {
+      return { ok: false, error: 'block hash mismatch' };
+    }
+    if (header.height !== block.height || header.prevHash !== block.prevHash || header.prevStateRoot !== block.prevStateRoot) {
+      return { ok: false, error: 'header fields mismatch' };
+    }
+    if (header.chainId !== block.chainId || header.protocolVersion !== block.protocolVersion || header.economicsVersion !== block.economicsVersion) {
+      return { ok: false, error: 'header chain fields mismatch' };
+    }
+
+    const txs = Array.isArray(block.transactions) ? block.transactions : [];
+    if (block.txCount !== undefined && Number(block.txCount) !== txs.length) {
+      return { ok: false, error: 'txCount mismatch' };
+    }
+
+    const userTypes = new Set(['transfer', 'register_participant', 'unregister_participant', 'heartbeat']);
+    const userTxs = [];
+    const rewardTxs = [];
+    for (const tx of txs) {
+      if (userTypes.has(tx.type)) {
+        userTxs.push(tx);
+      } else {
+        rewardTxs.push(tx);
+      }
+    }
+
+    const tempLedger = cloneLedgerSnapshot(ledger);
+    const tempMeta = { ...meta };
+    const height = BigInt(block.height);
+    const applied = applyUserTxs(
+      userTxs,
+      tempLedger,
+      tempMeta,
+      config.rewards?.treasuryAddress || '',
+      genesisOperatorAddress,
+      genesisFreeBlocks,
+      height,
+      blocksPer14Days
+    );
+    if (applied.length !== userTxs.length) {
+      return { ok: false, error: 'user tx validation failed' };
+    }
+
+    const mintContext = mintAndDistribute(
+      height,
+      block.timestamp,
+      config,
+      tempMeta,
+      tempLedger,
+      blocksPerYear,
+      blocksPer14Days,
+      nodePoolAddress,
+      holderPoolAddress
+    );
+
+    if (block.mintUnits && block.mintUnits !== mintContext.mintUnits.toString()) {
+      return { ok: false, error: 'mintUnits mismatch' };
+    }
+    if (block.mintRatePpm && block.mintRatePpm !== mintContext.ratePpm.toString()) {
+      return { ok: false, error: 'mintRatePpm mismatch' };
+    }
+
+    const expectedRewardTxs = buildMintTxs(mintContext, block.timestamp, height);
+    const rewardById = new Map();
+    for (const tx of rewardTxs) {
+      rewardById.set(tx.txid || tx.id, tx);
+    }
+    if (rewardById.size !== expectedRewardTxs.length) {
+      return { ok: false, error: 'reward tx count mismatch' };
+    }
+    for (const expected of expectedRewardTxs) {
+      const id = expected.txid || expected.id;
+      const actual = rewardById.get(id);
+      if (!actual) return { ok: false, error: `missing reward tx ${id}` };
+      if (actual.type !== expected.type) return { ok: false, error: `reward tx type mismatch for ${id}` };
+      if ((actual.to || '') !== (expected.to || '')) return { ok: false, error: `reward tx to mismatch for ${id}` };
+      const actualAmt = actual.amountMicro ?? actual.amountBaseUnits ?? '0';
+      const expectedAmt = expected.amountMicro ?? expected.amountBaseUnits ?? '0';
+      if (String(actualAmt) !== String(expectedAmt)) return { ok: false, error: `reward tx amount mismatch for ${id}` };
+    }
+
+    const expectedStateRoot = calculateStateRoot(tempLedger);
+    if (block.stateRoot !== expectedStateRoot) {
+      return { ok: false, error: 'stateRoot mismatch' };
+    }
+
+    const prevBaseFee = BigInt(meta.baseFeeBaseUnits || '0');
+    const gasUsed = userTxs.length;
+    const nextBaseFee = calculateNextBaseFee(
+      prevBaseFee,
+      BigInt(gasUsed),
+      BigInt(gasTarget),
+      baseFeeChangeDenominator,
+      minBaseFee
+    );
+
+    if (block.baseFeeBaseUnits && block.baseFeeBaseUnits !== prevBaseFee.toString()) {
+      return { ok: false, error: 'baseFeeBaseUnits mismatch' };
+    }
+    if (block.nextBaseFeeBaseUnits && block.nextBaseFeeBaseUnits !== nextBaseFee.toString()) {
+      return { ok: false, error: 'nextBaseFeeBaseUnits mismatch' };
+    }
+
+    tempMeta.latestHeight = block.height;
+    tempMeta.latestHash = block.hash;
+    tempMeta.baseFeeBaseUnits = nextBaseFee.toString();
+    tempMeta.totalSupplyUnits = mintContext.totalSupplyUnits.toString();
+    tempMeta.totalMintedUnits = mintContext.totalMintedUnits.toString();
+    tempMeta.mintAcc = mintContext.mintAcc.toString();
+    tempMeta.nodePoolUnits = mintContext.nodePoolUnits.toString();
+    tempMeta.holderPoolUnits = mintContext.holderPoolUnits.toString();
+    tempMeta.lastPayoutHeight = mintContext.lastPayoutHeight;
+    tempMeta.lastMintUnits = mintContext.mintUnits.toString();
+    tempMeta.lastMintRatePpm = mintContext.ratePpm.toString();
+    tempMeta.lastParticipantUnits = mintContext.participantUnits.toString();
+    tempMeta.lastParticipantCount = mintContext.participantCount ?? 0;
+    tempMeta.lastParticipantToTreasury = (mintContext.participantToTreasury || 0n).toString();
+    tempMeta.lastNodePoolAdd = mintContext.nodePoolAdd.toString();
+    tempMeta.lastHolderPoolAdd = mintContext.holderPoolAdd.toString();
+    tempMeta.lastTreasuryUnits = mintContext.treasuryUnits.toString();
+
+    ledger = tempLedger;
+    meta = tempMeta;
+    storage.putBlock(block, meta, ledger);
+    return { ok: true };
   }
 
   return {
@@ -475,6 +688,10 @@ function createBlockchain(config, mempool, storage) {
       };
     },
     getBlocks,
+    getBlocksFromHeight,
+    getLatestHeight,
+    setSyncStatus,
+    applyExternalBlock,
     getGenesis() {
       return { ...genesis, genesisHash };
     },

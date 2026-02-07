@@ -25,5 +25,18 @@ Address/public key format and txid changed. Reset chain data when upgrading:
 - txid now hashes the canonical message only (no signature)
 - Please reset chain data and wallet data for a clean start.
 
+## Observer Node (Windows EXE)
+An observer node is read-only: it syncs from a producer, validates blocks, and serves the Explorer UI without mining.
+The Windows EXE embeds Node 18 (LTS). Your normal dev/prod setup can keep using newer Node versions.
+
+Start:
+- Download and run `SpargeObserver.exe`
+- First run: enter Producer URL + local port, then it opens the Explorer
+
+Data location:
+- `%APPDATA%\\SpargeObserver\\` (config, data, logs)
+
+If the producer is unreachable, the Explorer shows a sync error banner.
+
 
 📺 Development logs: [https://youtube.com/@sparge](https://youtu.be/PzWenS1G968)

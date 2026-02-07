@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sparge Observer</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="observer observer-node">
+  <header class="observer-console-header">
+    <div class="observer-console-titleline">
+      <a class="brand observer-console-brand" href="/">
+        <img src="/assets/sparge_logo.png" alt="Sparge logo" class="logo-img" />
+        <div class="title">SPARGE OBSERVER NODE</div>
+      </a>
+      <div class="observer-inline-metrics">
+        <span class="observer-pill syncing" id="observerStatusBadge">SYNCING</span>
+        <span class="observer-metric">synced <strong id="observerSyncedHeight">0</strong></span>
+        <span class="observer-metric">producer <strong id="observerProducerHeight">-</strong></span>
+        <span class="observer-metric">lag <strong id="observerLagBlocks">0</strong></span>
+        <span class="observer-metric">url <strong id="observerProducerUrl">-</strong></span>
+      </div>
+    </div>
+    <nav class="observer-console-nav">
+      <a href="/" class="nav-link active">Node Dashboard</a>
+      <a href="#observerExplorerSection" class="nav-link">Explorer</a>
+      <a href="#blocks" class="nav-link">Blocks</a>
+      <a href="#transactions" class="nav-link">Transactions</a>
+      <a href="https://spargenetwork.github.io/sparge-docs/" class="nav-link" target="_blank" rel="noreferrer">Docs</a>
+    </nav>
+  </header>
+
+  <main class="observer-console-main">
+    <section class="observer-console-split">
+      <div class="observer-node-state">
+        <div class="observer-pane-title">Node State</div>
+        <div class="observer-state-grid" id="observerStatePanel"></div>
+        <div class="observer-readonly-note">READ ONLY: this node validates and serves explorer data, but cannot submit transactions.</div>
+      </div>
+      <div class="observer-log-pane">
+        <div class="observer-pane-title">Live Log Feed</div>
+        <pre class="observer-log-feed" id="observerLogFeed"></pre>
+      </div>
+    </section>
+
+    <section class="observer-explorer-shell" id="observerExplorerSection">
+      <div class="observer-explorer-head">
+        <div class="observer-pane-title">Explorer (Secondary)</div>
+        <div class="observer-explorer-sub">Technical browse tools for blocks, transactions and addresses.</div>
+      </div>
+
+      <section class="search-panel" id="addresses">
+        <form id="searchForm" class="search">
+          <input id="searchInput" type="text" placeholder="Search block / tx / address" />
+          <button class="btn ghost" type="submit">Search</button>
+        </form>
+      </section>
+
+      <section class="stats" id="chainStats"></section>
+
+      <section class="panel" id="transactions">
+        <div class="panel-header">
+          <h2>Latest Transactions</h2>
+        </div>
+        <div class="panel-body" id="observerTxList"></div>
+      </section>
+
+      <section class="panel" id="blocks">
+        <div class="panel-header">
+          <h2>Blocks</h2>
+          <div class="pager" id="pagerTop"></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Height</th>
+                <th>Txs</th>
+                <th>Timestamp</th>
+                <th>Hash</th>
+                <th>Prev hash</th>
+                <th>State root</th>
+                <th>Reward</th>
+              </tr>
+            </thead>
+            <tbody id="blocksTable"></tbody>
+          </table>
+        </div>
+        <div class="panel-footer" id="pagerBottom"></div>
+      </section>
+    </section>
+
+    <section class="info-panels observer-hidden">
+      <div class="info-panel">
+        <div class="panel-title">Sync Status</div>
+        <div class="panel-body" id="observerSyncPanel"></div>
+      </div>
+      <div class="info-panel">
+        <div class="panel-title">Status</div>
+        <div class="panel-body" id="statusPanel"></div>
+      </div>
+      <div class="info-panel">
+        <div class="panel-title">Genesis</div>
+        <div class="panel-body" id="genesisPanel"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -39,3 +39,11 @@ tx:
 
 dev:
   enableAdmin: true
+
+node:
+  mode: producer
+  producerUrl: "http://localhost:3051"
+  sync:
+    batchSize: 50
+    intervalMs: 2000
+    timeoutMs: 5000

@@ -1,6 +1,14 @@
 node_modules/
 dist/
+release/
+build/
+electron/runtime/
 data/db.json
 .env
 server/data/
 server/data/*.json
+server/data-observer/
+server/data-producer/
+*.db
+*.db-shm
+*.db-wal

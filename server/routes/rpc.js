@@ -69,6 +69,10 @@ function rpcRouter(blockchain, mempool, config) {
   });
 
   router.post('/tx', (req, res) => {
+    if (config.node?.mode === 'observer') {
+      res.status(403).json({ error: 'observer node is read-only' });
+      return;
+    }
     if (!mempool) {
       res.status(503).json({ error: 'mempool unavailable' });
       return;

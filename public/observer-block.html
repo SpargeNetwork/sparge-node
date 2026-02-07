@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sparge Observer Block</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="observer">
+  <header class="hero">
+    <a class="brand" href="/">
+      <img src="/assets/sparge_logo.png" alt="Sparge logo" class="logo-img" />
+      <div class="title">Sparge</div>
+      <span class="observer-badge">Observer Node</span>
+    </a>
+    <nav class="top-nav">
+      <a href="/" class="nav-link active">Explorer</a>
+      <a href="/#blocks" class="nav-link">Blocks</a>
+      <a href="/#transactions" class="nav-link">Transactions</a>
+      <a href="/#addresses" class="nav-link">Addresses</a>
+    </nav>
+    <div class="header-actions"></div>
+  </header>
+
+  <main>
+    <section class="panel" id="blockPage">
+      <div class="panel-header">
+        <div>
+          <a class="back-link" href="/">Back to Explorer</a>
+          <h2>Block</h2>
+        </div>
+        <div class="toast" id="copyToast">Copied!</div>
+      </div>
+      <div class="block-tabs">
+        <button class="tab-btn active" data-tab="overview">Overview</button>
+        <button class="tab-btn" data-tab="transactions">Transactions</button>
+      </div>
+      <div class="block-tab-panel active" data-tab-panel="overview">
+        <div class="details-grid" id="blockDetailsBody">
+          <div class="detail-empty">Loading blockâ€¦</div>
+        </div>
+      </div>
+      <div class="block-tab-panel" data-tab-panel="transactions">
+        <div class="tx-list" id="blockTxList">
+          <div class="detail-empty">Loading transactionsâ€¦</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

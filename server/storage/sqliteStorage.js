@@ -18,7 +18,8 @@ class SqliteStorage {
     ensureDir(dataDir);
     this.dbPath = path.join(dataDir, 'state.db');
     this.config = config;
-    this.db = new Database(this.dbPath);
+    const nativeBinding = process.env.BETTER_SQLITE3_BINDING || null;
+    this.db = nativeBinding ? new Database(this.dbPath, { nativeBinding }) : new Database(this.dbPath);
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('synchronous = FULL');
     this.db.pragma('foreign_keys = ON');
@@ -246,6 +247,12 @@ class SqliteStorage {
       .all(limit, offset);
     const blocks = rows.map((row) => JSON.parse(row.blockJson));
     return { total, blocks };
+  }
+
+  getBlocksFromHeight(startHeight, limit) {
+    const rows = this.db.prepare('SELECT blockJson FROM blocks WHERE height >= ? ORDER BY height ASC LIMIT ?')
+      .all(startHeight, limit);
+    return rows.map((row) => JSON.parse(row.blockJson));
   }
 
   getAllBlocks() {

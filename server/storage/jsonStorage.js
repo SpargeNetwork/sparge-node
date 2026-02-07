@@ -35,6 +35,12 @@ class JsonStorage {
     return getBlocksPage(this.dataDir, this.config.storage.blocksPerFile, offset, limit);
   }
 
+  getBlocksFromHeight(startHeight, limit) {
+    const all = loadBlocks(this.dataDir);
+    const items = all.filter((block) => block.height >= startHeight);
+    return items.slice(0, limit);
+  }
+
   getAllBlocks() {
     return loadBlocks(this.dataDir);
   }

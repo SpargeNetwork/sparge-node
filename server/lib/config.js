@@ -2,7 +2,8 @@
 const path = require('path');
 const YAML = require('yaml');
 
-const configPath = path.join(__dirname, '..', '..', 'config', 'config.yml');
+const defaultConfigPath = path.join(__dirname, '..', '..', 'config', 'config.yml');
+const configPath = process.env.CONFIG_PATH || defaultConfigPath;
 
 function loadConfig() {
   const raw = fs.readFileSync(configPath, 'utf8');

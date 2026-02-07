@@ -1,0 +1,385 @@
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const net = require('net');
+const express = require('express');
+const { exec } = require('child_process');
+
+const APP_NAME = 'SpargeObserver';
+const DEFAULT_PRODUCER = 'http://localhost:3051';
+const DEFAULT_PORT = 3052;
+const SETUP_PORT = 3059;
+
+function appDataDir() {
+  const root = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
+  return path.join(root, APP_NAME);
+}
+
+function getObserverPaths() {
+  const baseDir = appDataDir();
+  return {
+    baseDir,
+    dataDir: path.join(baseDir, 'data'),
+    logDir: path.join(baseDir, 'logs'),
+    configPath: path.join(baseDir, 'config.json'),
+    configPathYml: path.join(baseDir, 'config.yml')
+  };
+}
+
+function ensureDir(dir) {
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+function readJson(filePath) {
+  if (!fs.existsSync(filePath)) return null;
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+function writeJson(filePath, payload) {
+  const tmp = `${filePath}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(payload, null, 2), 'utf8');
+  fs.renameSync(tmp, filePath);
+}
+
+function loadBundledConfig() {
+  const exeDir = path.dirname(process.execPath);
+  const candidates = [
+    path.join(exeDir, 'config.yml'),
+    path.join(__dirname, 'config', 'config.yml'),
+    path.join(process.cwd(), 'config', 'config.yml')
+  ];
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) {
+        return fs.readFileSync(candidate, 'utf8');
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return `chain:
+  name: Sparge
+  symbol: SPRG
+  chainId: "sparge-mainnet"
+  blockTimeSeconds: 51
+  protocolVersion: "1.0.0"
+  economicsVersion: "1.0.0"
+
+token:
+  decimals: 9
+  initialSupplyTokens: "5100000000"
+
+mining:
+  proposerAddress: ""
+  genesisOperatorAddress: ""
+  genesisFreeBlocks: 100
+
+rewards:
+  treasuryAddress: ""
+  nodePoolAddress: ""
+  holderPoolAddress: ""
+
+storage:
+  backend: sqlite
+  blocksPerFile: 510
+
+gas:
+  blockLimit: 510
+  targetRatioBps: 8000
+  baseFeeInitialMicro: "1000"
+  baseFeeChangeDenominator: 8
+  minBaseFeeMicro: "0"
+
+mempool:
+  sort: fee
+
+tx:
+  minFeeMicro: "1000"
+
+dev:
+  enableAdmin: false
+
+node:
+  mode: observer
+  producerUrl: "http://localhost:3051"
+  sync:
+    batchSize: 50
+    intervalMs: 2000
+    timeoutMs: 5000
+`;
+}
+
+function ensureConfigFile(configPath) {
+  if (fs.existsSync(configPath)) return;
+  const contents = loadBundledConfig();
+  const tmp = `${configPath}.tmp`;
+  fs.writeFileSync(tmp, contents, 'utf8');
+  fs.renameSync(tmp, configPath);
+}
+
+function findAvailablePort(startPort) {
+  return new Promise((resolve) => {
+    const tryPort = (port) => {
+      const server = net.createServer();
+      server.unref();
+      server.on('error', () => tryPort(port + 1));
+      server.listen(port, '127.0.0.1', () => {
+        server.close(() => resolve(port));
+      });
+    };
+    tryPort(startPort);
+  });
+}
+
+function initLogger(logDir) {
+  ensureDir(logDir);
+  const logPath = path.join(logDir, 'node.log');
+  const stream = fs.createWriteStream(logPath, { flags: 'a' });
+  const write = (level, args) => {
+    const line = `[${new Date().toISOString()}] [${level}] ${args.join(' ')}\n`;
+    stream.write(line);
+  };
+  const origLog = console.log.bind(console);
+  const origError = console.error.bind(console);
+  console.log = (...args) => {
+    write('info', args.map(String));
+    origLog(...args);
+  };
+  console.error = (...args) => {
+    write('error', args.map(String));
+    origError(...args);
+  };
+}
+
+function getBundledPublicDir() {
+  const exeDir = path.dirname(process.execPath);
+  const candidates = [
+    process.env.PUBLIC_DIR,
+    path.join(exeDir, 'public'),
+    path.join(__dirname, 'public')
+  ].filter(Boolean);
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) return candidate;
+    } catch {
+      // ignore
+    }
+  }
+  return path.join(__dirname, 'public');
+}
+
+function getBundledSqliteBinding() {
+  const exeDir = path.dirname(process.execPath);
+  const candidates = [
+    process.env.BETTER_SQLITE3_BINDING,
+    path.join(exeDir, 'better_sqlite3.node')
+  ].filter(Boolean);
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) return candidate;
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+}
+
+function setupInlineHtml() {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Sparge Observer Setup</title>
+    <style>
+      :root {
+        --spg-primary: #1fa37a;
+        --spg-accent: #2bb673;
+        --bg: #0f1717;
+        --panel: #111f1f;
+        --text: #e7f4ef;
+        --muted: #9fbab2;
+        --border: #1f2f2b;
+        --radius: 14px;
+      }
+      * { box-sizing: border-box; font-family: system-ui, -apple-system, Segoe UI, sans-serif; }
+      body { margin: 0; background: var(--bg); color: var(--text); }
+      .wrap { max-width: 520px; margin: 10vh auto; padding: 24px; }
+      .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+      h1 { margin: 0 0 8px; font-size: 22px; }
+      p { margin: 0 0 20px; color: var(--muted); }
+      label { display: block; margin-bottom: 14px; }
+      span { display: block; margin-bottom: 6px; color: var(--muted); font-size: 13px; }
+      input { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: #0d1616; color: var(--text); }
+      .btn { background: var(--spg-primary); border: none; color: #03120e; padding: 12px 16px; border-radius: 12px; font-weight: 600; cursor: pointer; }
+      .error { margin-top: 12px; color: #ff7b7b; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="panel">
+        <h1>Observer Setup</h1>
+        <p>Connect this observer to a producer node. Settings are stored locally.</p>
+        <form id="setup-form">
+          <label>
+            <span>Producer URL</span>
+            <input id="producerUrl" type="text" placeholder="http://127.0.0.1:3051" required />
+          </label>
+          <label>
+            <span>Local Port</span>
+            <input id="port" type="number" min="1024" max="65535" placeholder="3052" required />
+          </label>
+          <button class="btn" type="submit">Save & Start</button>
+          <div id="setup-error" class="error"></div>
+        </form>
+      </div>
+    </div>
+    <script>
+      const form = document.getElementById('setup-form');
+      const errorEl = document.getElementById('setup-error');
+      const producerInput = document.getElementById('producerUrl');
+      const portInput = document.getElementById('port');
+      fetch('/setup/defaults').then(r => r.json()).then(d => {
+        if (d.producerUrl) producerInput.value = d.producerUrl;
+        if (d.port) portInput.value = d.port;
+      }).catch(() => {});
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errorEl.textContent = '';
+        const producerUrl = producerInput.value.trim();
+        const port = Number(portInput.value);
+        if (!producerUrl) { errorEl.textContent = 'Producer URL is required.'; return; }
+        if (!Number.isFinite(port) || port < 1024 || port > 65535) { errorEl.textContent = 'Port must be between 1024 and 65535.'; return; }
+        try {
+          const res = await fetch('/setup/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ producerUrl, port })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.ok) throw new Error(data.error || 'Failed to save settings.');
+          errorEl.textContent = 'Starting observer...';
+          if (!data.noBrowser) {
+            const target = 'http://127.0.0.1:' + data.port;
+            setTimeout(() => { window.location.href = target; }, 600);
+          }
+        } catch (err) {
+          errorEl.textContent = err.message || 'Failed to save settings.';
+        }
+      });
+    </script>
+  </body>
+</html>`;
+}
+
+async function startObserver(config, paths, options = {}) {
+  const openBrowser = options.openBrowser !== false;
+  const onObserverReady = options.onObserverReady;
+  let desiredPort = Number(config.port || DEFAULT_PORT);
+  if (!Number.isFinite(desiredPort) || desiredPort < 1024 || desiredPort > 65535) {
+    desiredPort = DEFAULT_PORT;
+  }
+  const port = await findAvailablePort(desiredPort);
+  if (port !== desiredPort) {
+    config.port = port;
+    writeJson(paths.configPath, config);
+  }
+
+  process.env.PUBLIC_DIR = getBundledPublicDir();
+  const binding = getBundledSqliteBinding();
+  if (binding) process.env.BETTER_SQLITE3_BINDING = binding;
+  process.env.NODE_MODE = 'observer';
+  process.env.PRODUCER_URL = config.producerUrl || DEFAULT_PRODUCER;
+  process.env.PORT = String(port);
+  process.env.DATA_DIR = paths.dataDir;
+  process.env.CONFIG_PATH = paths.configPathYml;
+
+  require('./server/index.js');
+
+  const appUrl = `http://127.0.0.1:${port}/`;
+  console.log(`[observer] app_url=${appUrl}`);
+  if (typeof onObserverReady === 'function') onObserverReady(appUrl, port);
+  if (openBrowser) exec(`start "" "${appUrl}"`);
+
+  return { appUrl, port };
+}
+
+async function startSetup(paths, options = {}) {
+  const openBrowser = options.openBrowser !== false;
+  const onSetupReady = options.onSetupReady;
+  const onObserverReady = options.onObserverReady;
+
+  const app = express();
+  app.use(express.json());
+
+  app.get(['/', '/setup'], (req, res) => {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(setupInlineHtml());
+  });
+
+  app.get('/setup/defaults', (req, res) => {
+    res.json({ producerUrl: DEFAULT_PRODUCER, port: DEFAULT_PORT });
+  });
+
+  const forcedSetupPort = Number(process.env.OBSERVER_SETUP_PORT || SETUP_PORT);
+  const setupPort = await findAvailablePort(forcedSetupPort);
+  const setupUrl = `http://127.0.0.1:${setupPort}/setup`;
+
+  const server = app.listen(setupPort, () => {
+    console.log(`[observer] setup_url=${setupUrl}`);
+    if (typeof onSetupReady === 'function') onSetupReady(setupUrl, setupPort);
+    if (openBrowser) exec(`start "" "${setupUrl}"`);
+  });
+
+  app.post('/setup/save', async (req, res) => {
+    const producerUrl = String(req.body?.producerUrl || '').trim();
+    const port = Number(req.body?.port || DEFAULT_PORT);
+    if (!producerUrl) {
+      res.status(400).json({ ok: false, error: 'Producer URL is required.' });
+      return;
+    }
+    if (!Number.isFinite(port) || port < 1024 || port > 65535) {
+      res.status(400).json({ ok: false, error: 'Port must be between 1024 and 65535.' });
+      return;
+    }
+
+    const config = { producerUrl, port };
+    writeJson(paths.configPath, config);
+    res.json({ ok: true, port, noBrowser: !openBrowser });
+    server.close(async () => {
+      await startObserver(config, paths, { openBrowser, onObserverReady });
+    });
+  });
+
+  return { setupUrl, setupPort, close: () => server.close() };
+}
+
+async function startObserverApp(options = {}) {
+  const paths = getObserverPaths();
+  ensureDir(paths.baseDir);
+  ensureDir(paths.dataDir);
+  initLogger(paths.logDir);
+  ensureConfigFile(paths.configPathYml);
+
+  const config = readJson(paths.configPath);
+  if (!config) {
+    return startSetup(paths, options);
+  }
+  return startObserver(config, paths, options);
+}
+
+if (require.main === module) {
+  const noBrowser = process.env.OBSERVER_NO_BROWSER === '1';
+  startObserverApp({ openBrowser: !noBrowser }).catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  APP_NAME,
+  DEFAULT_PORT,
+  DEFAULT_PRODUCER,
+  getObserverPaths,
+  startObserverApp
+};

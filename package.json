@@ -1,20 +1,76 @@
-﻿{
+{
   "name": "sparge-chain",
   "version": "0.1.0",
+  "description": "Sparge chain producer and observer node",
+  "author": "SpargeNetwork",
   "private": true,
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
+    "observer:desktop": "electron electron/main.js",
     "wallet": "node scripts/wallet.js",
     "tx": "node scripts/tx.js",
     "mine:start": "node scripts/mine.js start",
     "mine:stop": "node scripts/mine.js stop",
-    "mine:status": "node scripts/mine.js status"
+    "mine:status": "node scripts/mine.js status",
+    "rebuild:node18": "node scripts/rebuild-sqlite.js",
+    "rebuild:node20": "node scripts/rebuild-sqlite20.js",
+    "build:observer:win": "node scripts/build-observer.js",
+    "prepare:electron:runtime": "node scripts/prepare-electron-runtime.js",
+    "generate:icon": "node scripts/generate-icon.js",
+    "dist:observer:win": "npm run build:observer:win && npm run prepare:electron:runtime && npm run generate:icon && electron-builder --win nsis"
   },
   "dependencies": {
     "better-sqlite3": "^9.4.5",
     "bs58": "^5.0.0",
     "express": "^4.19.2",
     "yaml": "^2.4.5"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "pkg": "^5.8.1",
+    "png-to-ico": "^2.1.8"
+  },
+  "build": {
+    "appId": "io.sparge.observer",
+    "productName": "Sparge Observer",
+    "files": [
+      "electron/**/*",
+      "package.json"
+    ],
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "buildDependenciesFromSource": false,
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "directories": {
+      "output": "release"
+    },
+    "extraResources": [
+      {
+        "from": "electron/runtime",
+        "to": "observer-runtime"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "pkg": {
+    "assets": [
+      "public/*.html",
+      "public/*.js",
+      "public/*.css",
+      "public/assets/**/*",
+      "config/config.yml"
+    ]
   }
 }

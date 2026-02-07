@@ -20,6 +20,7 @@ function ensureGenesis(dataDir, config) {
     return { genesis: parsed, genesisHash: hash };
   }
 
+  const deterministicCreatedAt = config.chain?.genesisCreatedAt || '2026-01-01T00:00:00.000Z';
   const genesis = {
     chainId: config.chain.chainId,
     chainName: config.chain.name,
@@ -29,7 +30,7 @@ function ensureGenesis(dataDir, config) {
     economicsVersion: config.chain.economicsVersion,
     genesisOperatorAddress: config.mining?.genesisOperatorAddress || config.mining?.proposerAddress || '',
     genesisFreeBlocks: Number(config.mining?.genesisFreeBlocks ?? 100),
-    createdAt: new Date().toISOString()
+    createdAt: deterministicCreatedAt
   };
   const genesisHash = computeGenesisHash(genesis);
   const payload = { ...genesis, genesisHash };

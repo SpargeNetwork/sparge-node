@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Sparge Observer Setup</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="theme-dark">
+    <div class="page">
+      <header class="topbar">
+        <div class="logo">
+          <img src="/assets/sparge_logo.png" alt="Sparge" width="28" height="28" />
+          <span>Sparge Observer</span>
+        </div>
+      </header>
+      <main class="content">
+        <section class="panel">
+          <h1>Observer Setup</h1>
+          <p class="muted">Connect this observer to a producer node. Settings are stored locally.</p>
+          <form id="setup-form">
+            <label class="field">
+              <span>Producer URL</span>
+              <input id="producerUrl" type="text" placeholder="http://localhost:3051" required />
+            </label>
+            <label class="field">
+              <span>Local Port</span>
+              <input id="port" type="number" min="1024" max="65535" placeholder="3052" required />
+            </label>
+            <div class="actions">
+              <button type="submit" class="btn primary">Save & Start</button>
+            </div>
+            <div id="setup-error" class="error hidden"></div>
+          </form>
+        </section>
+      </main>
+    </div>
+    <script src="/setup.js"></script>
+  </body>
+</html>
