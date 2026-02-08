@@ -22,17 +22,18 @@ Use this as a Go/No-Go gate before inviting external users.
 
 ## 3) Data Safety & Recovery
 - [x] Snapshot process for SQLite state is documented.
-- [ ] Restore process is tested on a separate machine.
+- [x] Restore process is tested on a separate machine.
 - [x] Replay/bootstrap procedure is documented.
 - [x] Data directory locations are documented for producer and observer.
 - [x] Rollback/incident playbook exists (who decides, how to communicate, how to recover).
 
 ## 4) Protocol Correctness Confidence
-- [ ] Invariants endpoint/checks pass over recent chain range.
-- [ ] Nonce sequencing/mempool inclusion behavior tested under load.
-- [ ] Reward accounting validated against expected split sums.
-- [ ] Participant active-window behavior tested near boundaries.
-- [ ] Bond lock/release flows tested (register/unregister/heartbeat).
+- [x] Invariants endpoint/checks pass over recent chain range.
+- [x] Nonce sequencing/mempool inclusion behavior tested under load.
+- [x] Reward accounting validated against expected split sums.
+- [x] Participant active-window behavior tested near boundaries.
+- [x] Bond lock/release flows tested (register/unregister/heartbeat).
+- Review guide: `docs/REVIEW_PACKET.md`
 - [ ] Independent reviewer has inspected tx validation + state transition code paths.
 
 ## 5) Anti-Abuse Economics (Alpha Gate)
