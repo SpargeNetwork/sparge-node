@@ -34,14 +34,14 @@ Use this as a Go/No-Go gate before inviting external users.
 - [x] Participant active-window behavior tested near boundaries.
 - [x] Bond lock/release flows tested (register/unregister/heartbeat).
 - Review guide: `docs/REVIEW_PACKET.md`
-- [ ] Independent reviewer has inspected tx validation + state transition code paths.
+- [x] Independent reviewer has inspected tx validation + state transition code paths.
 
 ## 5) Anti-Abuse Economics (Alpha Gate)
-- [ ] Sybil-style participation scenarios simulated.
-- [ ] Holder eligibility edge timing tested around payout window.
-- [ ] Sponsor cap constraints tested under adversarial sequences.
-- [ ] No obvious free-rider path found for reward capture.
-- [ ] Known economic limitations are explicitly documented.
+- [x] Sybil-style participation scenarios simulated.
+- [x] Holder eligibility edge timing tested around payout window.
+- [x] Sponsor cap constraints tested under adversarial sequences.
+- [x] No obvious free-rider path found for reward capture.
+- [x] Known economic limitations are explicitly documented.
 
 ## 6) Release Discipline
 - [ ] Version tag created (`v0.x.y-alpha`).

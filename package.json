@@ -17,6 +17,8 @@
     "snapshot:state": "powershell -ExecutionPolicy Bypass -File scripts/snapshot-state.ps1",
     "restore:state": "powershell -ExecutionPolicy Bypass -File scripts/restore-state.ps1",
     "test:recovery": "powershell -ExecutionPolicy Bypass -File scripts/test-recovery.ps1",
+    "test:protocol": "node scripts/test-protocol-correctness.js",
+    "test:economics": "node scripts/test-economics.js",
     "rebuild:node18": "node scripts/rebuild-sqlite.js",
     "rebuild:node20": "node scripts/rebuild-sqlite20.js",
     "build:observer:win": "node scripts/build-observer.js",

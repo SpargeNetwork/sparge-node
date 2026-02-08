@@ -37,3 +37,10 @@ System-generated block tx types may include:
 - `treasury_reward`
 - `node_pool_accrual`
 - `holder_pool_accrual`
+
+## Alpha Economics Limitations
+
+- Single-producer alpha means liveness/censorship guarantees are operational, not consensus-backed.
+- Participant rewards are split equally across active participants; this is sybil-resistant only to the degree bond+sponsorship constraints hold.
+- Holder eligibility is based on rolling average balance and can still be strategy-tested around window boundaries.
+- Node and holder pools accrue and pay on schedule; no external governance or slashing exists in alpha.

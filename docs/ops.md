@@ -113,6 +113,40 @@ Output:
 - log file: `scripts/out/test-stability-<timestamp>.log`
 - exit code `0` on success, `1` on any failure
 
+## Protocol Correctness Smoke Test
+
+Run:
+- `npm run test:protocol`
+
+What it validates:
+- invariants endpoint passes on recent chain state
+- nonce monotonic behavior and mempool sequencing under tx burst
+- reward accounting consistency via invariants after load
+- participant active-window boundary behavior (inactive/reactivated)
+- participant bond lock/release lifecycle (register/unregister/heartbeat)
+
+Output:
+- PASS/FAIL lines in terminal
+- log file: `scripts/out/test-protocol-<timestamp>.log`
+- exit code `0` on success, `1` on any failure
+
+## Economics Anti-Abuse Smoke Test
+
+Run:
+- `npm run test:economics`
+
+What it validates:
+- sybil-style participant registration and reward split behavior
+- sponsor cap enforcement (`MAX_SPONSORED_PARTICIPANTS`)
+- free-rider rejection for unfunded/unregistered participants
+- holder average-window edge behavior near eligibility threshold
+- invariants remain green after adversarial economics scenarios
+
+Output:
+- PASS/FAIL lines in terminal
+- log file: `scripts/out/test-economics-<timestamp>.log`
+- exit code `0` on success, `1` on any failure
+
 ## Incident / Rollback Playbook (v1)
 
 Roles:

@@ -573,10 +573,12 @@ function createBlockchain(config, mempool, storage, dataDirOverride) {
       const participants = {};
       let genesisFreeUsed = false;
       const lastNonce = new Map();
+      const userTypes = new Set(['transfer', 'register_participant', 'unregister_participant', 'heartbeat']);
 
       for (const block of blocks) {
         const height = BigInt(block.height || 0);
         const txs = getBlockTransactions(block);
+        const userTxs = txs.filter((tx) => userTypes.has(tx.type));
         const mintUnits = BigInt(block.mintUnits || '0');
         const participantUnits = (mintUnits * 1500n) / BPS_DENOM;
         const nodePoolAdd = (mintUnits * 7000n) / BPS_DENOM;
@@ -585,6 +587,55 @@ function createBlockchain(config, mempool, storage, dataDirOverride) {
         const distributed = participantUnits + nodePoolAdd + treasuryUnits + holderPoolAdd;
         const remainder = mintUnits - distributed;
         treasuryUnits += remainder;
+
+        for (const tx of userTxs) {
+          if (tx.amountMicro && BigInt(tx.amountMicro) < 0n) {
+            errors.push(`height ${block.height}: negative amount`);
+          }
+          if (tx.feeMicro && BigInt(tx.feeMicro) < 0n) {
+            errors.push(`height ${block.height}: negative fee`);
+          }
+          if (tx.from && tx.nonce !== undefined && tx.nonce !== null) {
+            const nonce = BigInt(tx.nonce || '0');
+            const prev = lastNonce.get(tx.from);
+            if (prev !== undefined && nonce !== prev + 1n) {
+              errors.push(`height ${block.height}: nonce jump for ${tx.from} (got ${nonce}, expected ${prev + 1n})`);
+            }
+            lastNonce.set(tx.from, nonce);
+          }
+          if (tx.type === 'register_participant') {
+            const participant = tx.participant || '';
+            if (participant) {
+              const withinFreeWindow = genesisFreeBlocks > 0 && height < BigInt(genesisFreeBlocks);
+              const isGenesisFree = !genesisFreeUsed
+                && withinFreeWindow
+                && tx.from === genesisOperatorAddress
+                && tx.participant === tx.from;
+              const bondRecorded = String(tx.bondMicro || '0');
+              if (isGenesisFree && bondRecorded !== '0') {
+                errors.push(`height ${block.height}: genesis free registration should have bond 0`);
+              }
+              if (!isGenesisFree && bondRecorded !== String(PARTICIPANT_BOND_MICRO)) {
+                errors.push(`height ${block.height}: non-genesis registration with zero bond`);
+              }
+              participants[participant] = {
+                sponsor: tx.from,
+                bondMicro: bondRecorded,
+                registeredHeight: String(height),
+                lastSeenHeight: String(height)
+              };
+              if (isGenesisFree) genesisFreeUsed = true;
+            }
+          }
+          if (tx.type === 'unregister_participant') {
+            delete participants[tx.from];
+          }
+          if (tx.type === 'heartbeat' || tx.type === 'transfer') {
+            if (participants[tx.from]) {
+              participants[tx.from].lastSeenHeight = String(height);
+            }
+          }
+        }
 
         const active = getActiveParticipants({ participants }, height, ACTIVE_WINDOW_BLOCKS);
         const activeSorted = active.slice().sort((a, b) => a.localeCompare(b));
@@ -619,52 +670,6 @@ function createBlockchain(config, mempool, storage, dataDirOverride) {
             errors.push(`height ${block.height}: missing treasury reward`);
           } else if (BigInt(treasuryTx.amountMicro || '0') !== treasuryUnits) {
             errors.push(`height ${block.height}: treasury reward mismatch`);
-          }
-        }
-
-        for (const tx of txs) {
-          if (tx.amountMicro && BigInt(tx.amountMicro) < 0n) {
-            errors.push(`height ${block.height}: negative amount`);
-          }
-          if (tx.feeMicro && BigInt(tx.feeMicro) < 0n) {
-            errors.push(`height ${block.height}: negative fee`);
-          }
-          if (tx.from && tx.nonce !== undefined && tx.nonce !== null) {
-            const nonce = BigInt(tx.nonce || '0');
-            const prev = lastNonce.get(tx.from);
-            if (prev !== undefined && nonce !== prev + 1n) {
-              errors.push(`height ${block.height}: nonce jump for ${tx.from} (got ${nonce}, expected ${prev + 1n})`);
-            }
-            lastNonce.set(tx.from, nonce);
-          }
-          if (tx.type === 'register_participant') {
-            const participant = tx.participant || '';
-            if (participant) {
-              const withinFreeWindow = genesisFreeBlocks > 0 && height < BigInt(genesisFreeBlocks);
-              const isGenesisFree = !genesisFreeUsed && withinFreeWindow && tx.from === genesisOperatorAddress;
-              const bondRecorded = participants[participant]?.bondMicro || '0';
-              if (isGenesisFree && bondRecorded !== '0') {
-                errors.push(`height ${block.height}: genesis free registration should have bond 0`);
-              }
-              if (!isGenesisFree && bondRecorded === '0') {
-                errors.push(`height ${block.height}: non-genesis registration with zero bond`);
-              }
-              participants[participant] = {
-                sponsor: tx.from,
-                bondMicro: isGenesisFree ? '0' : String(PARTICIPANT_BOND_MICRO),
-                registeredHeight: String(height),
-                lastSeenHeight: String(height)
-              };
-              if (isGenesisFree) genesisFreeUsed = true;
-            }
-          }
-          if (tx.type === 'unregister_participant') {
-            delete participants[tx.from];
-          }
-          if (tx.type === 'heartbeat' || tx.type === 'transfer') {
-            if (participants[tx.from]) {
-              participants[tx.from].lastSeenHeight = String(height);
-            }
           }
         }
       }
@@ -1137,7 +1142,7 @@ function computeAverageBalance(history, currentBalance, startHeight, endHeight) 
   const entries = history
     .map((entry) => ({
       height: BigInt(entry.height || '0'),
-      balance: BigInt(entry.balanceMicro || '0')
+      balance: BigInt(entry.balanceMicro ?? entry.balance ?? '0')
     }))
     .sort((a, b) => (a.height < b.height ? -1 : a.height > b.height ? 1 : 0));
 
@@ -1353,7 +1358,13 @@ function applyUserTxs(txs, ledger, meta, feeRecipient, genesisOperatorAddress, g
     let isGenesisFree = false;
     if (tx.type === 'register_participant') {
       const withinFreeWindow = genesisFreeBlocks > 0 && height < BigInt(genesisFreeBlocks);
-      if (!genesisFreeUsed && withinFreeWindow && genesisOperatorAddress && tx.from === genesisOperatorAddress) {
+      if (
+        !genesisFreeUsed
+        && withinFreeWindow
+        && genesisOperatorAddress
+        && tx.from === genesisOperatorAddress
+        && tx.participant === tx.from
+      ) {
         bondMicro = 0n;
         isGenesisFree = true;
       } else {
