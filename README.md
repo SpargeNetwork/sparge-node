@@ -76,6 +76,11 @@ Examples:
 - `/api/tx/:txid`
 - `/api/address/:addr`
 
+## Release Discipline
+
+- Changelog: `CHANGELOG.md`
+- Release notes template: `docs/RELEASE_TEMPLATE.md`
+
 ## Notes
 
 - Address format: `spg_` + base58(sha256(pubKeyBytes)[0..20])

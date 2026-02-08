@@ -45,9 +45,9 @@ Use this as a Go/No-Go gate before inviting external users.
 
 ## 6) Release Discipline
 - [ ] Version tag created (`v0.x.y-alpha`).
-- [ ] Changelog includes breaking changes + migration notes.
-- [ ] `protocolVersion` and `economicsVersion` declared in release notes.
-- [ ] Build instructions are reproducible from a clean machine.
+- [x] Changelog includes breaking changes + migration notes.
+- [x] `protocolVersion` and `economicsVersion` declared in release notes.
+- [x] Build instructions are reproducible from a clean machine.
 - [ ] Installer/EXE artifacts are published via GitHub Releases (not committed to repo).
 
 ## 7) Observability & Operations

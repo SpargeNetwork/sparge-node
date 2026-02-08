@@ -62,6 +62,27 @@ Do not commit build artifacts:
 - `build/`
 - `electron/runtime/`
 
+Release sources:
+- changelog: `CHANGELOG.md`
+- release notes template: `docs/RELEASE_TEMPLATE.md`
+
+## Release Runbook (Alpha)
+
+1. Ensure clean working tree:
+   - `git status`
+2. Run validation suite:
+   - `npm run test:stability`
+   - `npm run test:recovery`
+   - `npm run test:protocol`
+   - `npm run test:economics`
+3. Build observer installer:
+   - `npm run dist:observer:win`
+4. Create/refresh release notes from `docs/RELEASE_TEMPLATE.md`.
+5. Tag release:
+   - `git tag vX.Y.Z-alpha`
+   - `git push origin vX.Y.Z-alpha`
+6. Publish installer via GitHub Releases (do not commit binaries).
+
 ## Snapshot & Restore (SQLite)
 
 Create snapshot zip (state + genesis):
