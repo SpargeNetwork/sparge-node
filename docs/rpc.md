@@ -2,37 +2,47 @@
 
 Base path: `/api`
 
-## Status
+## Status / Genesis
 
-`GET /status`
+- `GET /api/status`
+- `GET /api/genesis`
 
-Includes (selected):
+Selected status fields:
+- `nodeMode`, `producerUrl`, `syncState`
+- `syncedHeight`, `producerHeight`, `lagBlocks`
 - `genesisOperatorAddress`, `genesisFreeBlocks`, `genesisFreeUsed`
 - `producerAddress`, `treasuryAddress`, `nodePoolAddress`, `holderPoolAddress`
 - `decimals`, `baseFeeMicro`, `minFeeMicro`
 
-## Balance / Nonce
+## Balances / Nonce
 
-`GET /balance/:addr`  
-`GET /nonce/:addr`
+- `GET /api/balance/:addr`
+- `GET /api/nonce/:addr`
 
-## Blocks / Transactions
+## Blocks
 
-`GET /block/:height`  
-`GET /tx/:txid`
+- `GET /api/blocks?page=<n>&limit=<n>`
+- `GET /api/blocks/state`
+- `GET /api/blocks?fromHeight=<n>&limit=<n>` (producer sync feed)
+- `GET /api/block/:height`
 
-## Address
+## Transactions
 
-`GET /address/:addr`  
-`GET /address/:addr/txs?limit=50`
+- `GET /api/tx/:txid`
+- `POST /api/tx`
 
-## Submit Transaction
-
-`POST /tx`
-
-Body includes:
+`POST /api/tx` body fields:
 
 ```
 type, chainId, from, to, amountMicro, feeMicro, nonce,
 publicKeyHex, signatureHex, sponsor, participant, memo
 ```
+
+Notes:
+- In observer mode, `POST /api/tx` returns `403`.
+- Canonical message order includes `type` as first field.
+
+## Address
+
+- `GET /api/address/:addr`
+- `GET /api/address/:addr/txs?limit=50`

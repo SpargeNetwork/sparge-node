@@ -9,6 +9,9 @@ server/data/
 server/data/*.json
 server/data-observer/
 server/data-producer/
+server/data-*-test*/
+scripts/out/
+server/data-recovery-*/
 *.db
 *.db-shm
 *.db-wal

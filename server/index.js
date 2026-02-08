@@ -11,6 +11,7 @@ const { miningRouter } = require('./routes/mining');
 const { mempoolRouter } = require('./routes/mempool');
 const { rpcRouter } = require('./routes/rpc');
 const { debugRouter } = require('./routes/debug');
+const { createCorsMiddleware, createRateLimiter } = require('./lib/httpSecurity');
 
 const app = express();
 const config = loadConfig();
@@ -25,9 +26,13 @@ const blockchain = createBlockchain(config, mempool, storage, dataDir);
 const miner = nodeMode === 'producer' ? createMiner(blockchain, config) : null;
 const observerSync = nodeMode === 'observer' ? createObserverSync(blockchain, config) : null;
 
-app.use(express.json());
-app.use('/api/blocks', blocksRouter(blockchain));
-if (miner) app.use('/api/mining', miningRouter(miner));
+const jsonBodyLimit = config?.http?.jsonBodyLimit || '64kb';
+app.use(express.json({ limit: jsonBodyLimit }));
+app.use('/api', createCorsMiddleware(config));
+app.use('/api', createRateLimiter(config?.http?.rateLimit));
+app.use('/api/tx', createRateLimiter(config?.http?.txRateLimit));
+app.use('/api/blocks', blocksRouter(blockchain, config));
+if (miner) app.use('/api/mining', miningRouter(miner, config));
 if (mempool) app.use('/api/mempool', mempoolRouter(mempool));
 app.use('/api', rpcRouter(blockchain, mempool, config));
 app.use('/api/debug', debugRouter(blockchain));

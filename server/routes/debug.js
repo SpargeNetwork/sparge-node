@@ -1,9 +1,5 @@
 const express = require('express');
-
-function isLocalRequest(req) {
-  const ip = req.ip || '';
-  return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
-}
+const { isLocalRequest } = require('../lib/httpSecurity');
 
 function debugRouter(blockchain) {
   const router = express.Router();

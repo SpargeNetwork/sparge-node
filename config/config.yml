@@ -38,7 +38,24 @@ tx:
   minFeeMicro: "1000"
 
 dev:
-  enableAdmin: true
+  enableAdmin: false
+
+http:
+  jsonBodyLimit: "64kb"
+  corsAllowedOrigins:
+    - "http://localhost:3051"
+    - "http://127.0.0.1:3051"
+    - "http://localhost:3052"
+    - "http://127.0.0.1:3052"
+  rateLimit:
+    windowMs: 60000
+    max: 600
+  txRateLimit:
+    windowMs: 60000
+    max: 60
+  blocksSyncRateLimit:
+    windowMs: 60000
+    max: 120
 
 node:
   mode: producer
