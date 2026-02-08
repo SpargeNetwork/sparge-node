@@ -30,6 +30,12 @@ function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
+function parsePositiveInt(value, fallback) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.floor(parsed);
+}
+
 function readJson(filePath) {
   if (!fs.existsSync(filePath)) return null;
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -134,10 +140,72 @@ function findAvailablePort(startPort) {
 function initLogger(logDir) {
   ensureDir(logDir);
   const logPath = path.join(logDir, 'node.log');
-  const stream = fs.createWriteStream(logPath, { flags: 'a' });
+  const maxBytes = parsePositiveInt(process.env.OBSERVER_LOG_MAX_BYTES, 10 * 1024 * 1024);
+  const maxFiles = parsePositiveInt(process.env.OBSERVER_LOG_MAX_FILES, 7);
+  const archivePrefix = 'node-';
+
+  function listArchives() {
+    try {
+      return fs.readdirSync(logDir)
+        .filter((name) => name.startsWith(archivePrefix) && name.endsWith('.log'))
+        .map((name) => {
+          const filePath = path.join(logDir, name);
+          let mtimeMs = 0;
+          try {
+            mtimeMs = fs.statSync(filePath).mtimeMs || 0;
+          } catch {
+            mtimeMs = 0;
+          }
+          return { name, filePath, mtimeMs };
+        })
+        .sort((a, b) => b.mtimeMs - a.mtimeMs);
+    } catch {
+      return [];
+    }
+  }
+
+  function pruneArchives() {
+    const keepArchives = Math.max(0, maxFiles - 1);
+    const archives = listArchives();
+    if (archives.length <= keepArchives) return;
+    for (const entry of archives.slice(keepArchives)) {
+      try {
+        fs.unlinkSync(entry.filePath);
+      } catch {
+        // best effort
+      }
+    }
+  }
+
+  function rotateIfNeeded() {
+    let stat;
+    try {
+      stat = fs.statSync(logPath);
+    } catch {
+      return;
+    }
+    if (!stat.isFile() || stat.size < maxBytes) return;
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const archive = path.join(logDir, `${archivePrefix}${stamp}.log`);
+    try {
+      fs.renameSync(logPath, archive);
+    } catch {
+      return;
+    }
+    pruneArchives();
+  }
+
+  rotateIfNeeded();
+  pruneArchives();
+
   const write = (level, args) => {
+    rotateIfNeeded();
     const line = `[${new Date().toISOString()}] [${level}] ${args.join(' ')}\n`;
-    stream.write(line);
+    try {
+      fs.appendFileSync(logPath, line, 'utf8');
+    } catch {
+      // avoid crashing app on logging I/O failure
+    }
   };
   const origLog = console.log.bind(console);
   const origError = console.error.bind(console);

@@ -45,6 +45,33 @@ Observer desktop app:
 - `%APPDATA%\\SpargeObserver\\logs`
 - `%APPDATA%\\SpargeObserver\\config.json`
 
+## Health Monitoring
+
+Run watchdog:
+- `npm run ops:healthwatch`
+
+Direct invocation with custom thresholds:
+- `powershell -ExecutionPolicy Bypass -File scripts/watch-health.ps1 -BaseUrl http://127.0.0.1:3052 -MaxLagBlocks 8 -MaxConsecutiveFailures 3`
+
+Behavior:
+- polls `/api/status` on interval
+- marks observer unhealthy when `syncState=error` or `lagBlocks` exceeds threshold
+- emits an explicit `ALERT` line after consecutive failures
+- writes output to `scripts/out/health-watch-<timestamp>.log`
+
+## Log Retention Policy
+
+Observer runtime log path:
+- `%APPDATA%\\SpargeObserver\\logs\\node.log`
+
+Automatic rotation/retention in launcher:
+- rotates when `node.log` exceeds max size
+- keeps latest N log files (`node.log` + archived `node-*.log`)
+
+Env overrides:
+- `OBSERVER_LOG_MAX_BYTES` (default: `10485760`, 10 MiB)
+- `OBSERVER_LOG_MAX_FILES` (default: `7`)
+
 ## Core Config
 
 Main config file:

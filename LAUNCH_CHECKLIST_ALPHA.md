@@ -51,8 +51,8 @@ Use this as a Go/No-Go gate before inviting external users.
 - [ ] Installer/EXE artifacts are published via GitHub Releases (not committed to repo).
 
 ## 7) Observability & Operations
-- [ ] Health check endpoint monitored.
-- [ ] Log files rotate or have retention policy.
+- [x] Health check endpoint monitored.
+- [x] Log files rotate or have retention policy.
 - [ ] Critical errors trigger alert/notification path.
 - [ ] Basic uptime target defined for producer and public observer.
 - [ ] Incident response contacts/responsibilities are defined.

@@ -16,6 +16,7 @@
     "test:stability": "powershell -ExecutionPolicy Bypass -File scripts/test-stability.ps1",
     "snapshot:state": "powershell -ExecutionPolicy Bypass -File scripts/snapshot-state.ps1",
     "restore:state": "powershell -ExecutionPolicy Bypass -File scripts/restore-state.ps1",
+    "ops:healthwatch": "powershell -ExecutionPolicy Bypass -File scripts/watch-health.ps1",
     "test:recovery": "powershell -ExecutionPolicy Bypass -File scripts/test-recovery.ps1",
     "test:protocol": "node scripts/test-protocol-correctness.js",
     "test:economics": "node scripts/test-economics.js",
