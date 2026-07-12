@@ -1,13 +1,17 @@
 node_modules/
+.vscode/
 dist/
 release/
 build/
 electron/runtime/
 data/db.json
 .env
+*.lnk
+backups/
 server/data/
 server/data/*.json
 server/data-observer/
+server/data-observer-local/
 server/data-producer/
 server/data-*-test*/
 scripts/out/

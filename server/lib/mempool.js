@@ -86,7 +86,11 @@ function createMempool(config) {
     pool.push(...newPool);
   }
 
-  return { addTx, list, getMaxNonce, getPendingSpend, removeByIds, sortMode };
+  function size() {
+    return pool.length;
+  }
+
+  return { addTx, list, getMaxNonce, getPendingSpend, removeByIds, size, sortMode };
 }
 
 module.exports = { createMempool };

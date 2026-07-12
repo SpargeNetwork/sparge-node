@@ -11,10 +11,21 @@ const { miningRouter } = require('./routes/mining');
 const { mempoolRouter } = require('./routes/mempool');
 const { rpcRouter } = require('./routes/rpc');
 const { debugRouter } = require('./routes/debug');
-const { createCorsMiddleware, createRateLimiter } = require('./lib/httpSecurity');
+const { networkRouter } = require('./routes/network');
+const { observerSettingsRouter } = require('./routes/observerSettings');
+const { createCorsMiddleware, createRateLimiter, createConcurrencyLimiter } = require('./lib/httpSecurity');
+const { createObserverHeartbeatClient } = require('./lib/observerHeartbeatClient');
+const { validationErrorHandler } = require('./lib/validation/errors');
+const {
+  getRequestBodyLimits,
+  createContentLengthPrecheck,
+  createJsonBodyParser,
+  requestSizeErrorHandler
+} = require('./lib/requestSize');
 
 const app = express();
 const config = loadConfig();
+app.set('trust proxy', config.security?.trustProxy || false);
 if (!config.node) config.node = {};
 if (process.env.NODE_MODE) config.node.mode = process.env.NODE_MODE;
 if (process.env.PRODUCER_URL) config.node.producerUrl = process.env.PRODUCER_URL;
@@ -25,17 +36,40 @@ const storage = createStorage(dataDir, config);
 const blockchain = createBlockchain(config, mempool, storage, dataDir);
 const miner = nodeMode === 'producer' ? createMiner(blockchain, config) : null;
 const observerSync = nodeMode === 'observer' ? createObserverSync(blockchain, config) : null;
+const observerHeartbeat = nodeMode === 'observer' ? createObserverHeartbeatClient(blockchain, config, dataDir) : null;
 
-const jsonBodyLimit = config?.http?.jsonBodyLimit || '64kb';
-app.use(express.json({ limit: jsonBodyLimit }));
+const bodyLimits = getRequestBodyLimits(config);
+const rateLimits = config.security?.rateLimits || {};
+const rateEnabled = rateLimits.enabled !== false;
+const ipKey = (req) => req.ip || req.socket?.remoteAddress || 'unknown';
+const skipPostTx = (req) => req.method !== 'POST' || req.path !== '/';
+const skipNotPost = (req) => req.method !== 'POST';
 app.use('/api', createCorsMiddleware(config));
-app.use('/api', createRateLimiter(config?.http?.rateLimit));
-app.use('/api/tx', createRateLimiter(config?.http?.txRateLimit));
+app.use('/api', createRateLimiter({ enabled: rateEnabled, ...rateLimits.global, keyFn: ipKey, group: 'global' }));
+app.use(['/api/status', '/api/genesis', '/api/network/status', '/api/mempool'], createRateLimiter({ enabled: rateEnabled, ...rateLimits.publicRead, keyFn: ipKey, group: 'publicRead' }));
+app.use(['/api/block', '/api/blocks'], createRateLimiter({ enabled: rateEnabled, ...rateLimits.blockAndTxLookup, keyFn: ipKey, group: 'blockAndTxLookup' }));
+app.use('/api/tx', createRateLimiter({ enabled: rateEnabled, ...rateLimits.blockAndTxLookup, keyFn: ipKey, group: 'blockAndTxLookup', skip: (req) => req.method !== 'GET' }));
+app.use(['/api/balance', '/api/nonce', '/api/address'], createRateLimiter({ enabled: rateEnabled, ...rateLimits.addressHistory, keyFn: ipKey, group: 'addressHistory' }));
+app.use('/api/network/observers', createRateLimiter({ enabled: rateEnabled, ...rateLimits.addressHistory, keyFn: ipKey, group: 'observerList' }));
+app.use('/api/mining', createRateLimiter({ enabled: rateEnabled, ...rateLimits.operator, keyFn: ipKey, group: 'operator' }));
+app.use('/api/debug', createRateLimiter({ enabled: rateEnabled, ...rateLimits.operator, keyFn: ipKey, group: 'operator' }));
+app.use('/api/tx', createRateLimiter({ enabled: rateEnabled, ...rateLimits.transaction, keyFn: ipKey, group: 'transaction', skip: skipPostTx }));
+app.use('/api/tx', createConcurrencyLimiter({ enabled: rateEnabled, maxConcurrentPerIp: rateLimits.transaction?.maxConcurrentPerIp, keyFn: ipKey, group: 'transactionConcurrency', skip: skipPostTx }));
+app.use('/api/network/heartbeat', createRateLimiter({ enabled: rateEnabled, ...rateLimits.heartbeat, keyFn: ipKey, group: 'heartbeatIp', skip: skipNotPost }));
+app.use('/api/observer/settings', createRateLimiter({ enabled: rateEnabled, ...rateLimits.observerSettings, keyFn: ipKey, group: 'observerSettings', skip: skipNotPost }));
+app.use('/api', createContentLengthPrecheck(bodyLimits.json));
+app.use('/api/tx', createJsonBodyParser(bodyLimits.transaction));
+app.use('/api/network/heartbeat', createJsonBodyParser(bodyLimits.heartbeat));
+app.use('/api/observer/settings', createJsonBodyParser(bodyLimits.observerSettings));
 app.use('/api/blocks', blocksRouter(blockchain, config));
 if (miner) app.use('/api/mining', miningRouter(miner, config));
 if (mempool) app.use('/api/mempool', mempoolRouter(mempool));
 app.use('/api', rpcRouter(blockchain, mempool, config));
+app.use('/api/network', networkRouter(blockchain, storage, mempool, config));
+app.use('/api/observer', observerSettingsRouter(config, dataDir));
 app.use('/api/debug', debugRouter(blockchain));
+app.use('/api', requestSizeErrorHandler);
+app.use('/api', validationErrorHandler);
 const publicDir = process.env.PUBLIC_DIR || path.join(__dirname, '..', 'public');
 const isObserverMode = nodeMode === 'observer';
 const indexTemplate = isObserverMode ? 'observer-index.html' : 'index.html';
@@ -63,6 +97,9 @@ app.get(['/wallet', '/wallet/'], (req, res) => {
 app.get(['/docs', '/docs/'], (req, res) => {
   res.sendFile(path.join(publicDir, 'docs.html'));
 });
+app.get(['/network', '/network/'], (req, res) => {
+  res.sendFile(path.join(publicDir, 'network.html'));
+});
 app.get(['/block/:height', '/block/:height/'], (req, res) => {
   res.sendFile(path.join(publicDir, blockTemplate));
 });
@@ -81,4 +118,8 @@ app.listen(port, () => {
 
 if (observerSync) {
   observerSync.start();
+}
+
+if (observerHeartbeat) {
+  observerHeartbeat.start();
 }

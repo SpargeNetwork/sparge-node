@@ -43,6 +43,10 @@ There are no guarantees about:
 Current architecture is:
 - producer node(s): create blocks
 - observer nodes: sync and validate blocks, serve read-only explorer
+- network overview: producer and observer health from recent observer heartbeats
+- request validation: centralized `/api` body, param, and query schemas
+- request size limits: route-specific JSON body caps and safe oversized-request errors
+- rate limits: endpoint-specific API throttling, transaction concurrency caps, and trust proxy rules
 
 Observer sync is currently HTTP producer-to-observer, not full P2P consensus.
 

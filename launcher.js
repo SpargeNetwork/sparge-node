@@ -4,6 +4,7 @@ const os = require('os');
 const net = require('net');
 const express = require('express');
 const { exec } = require('child_process');
+const { normalizePrivacy, saveObserverPrivacySettings } = require('./server/lib/observerPrivacy');
 
 const APP_NAME = 'SpargeObserver';
 const DEFAULT_PRODUCER = 'http://localhost:3051';
@@ -112,6 +113,55 @@ node:
     batchSize: 50
     intervalMs: 2000
     timeoutMs: 5000
+
+observer:
+  publicListingEnabled: false
+  publicAlias: ""
+  countryCode: ""
+
+security:
+  trustProxy: false
+  maxJsonBodyBytes: 32768
+  maxTransactionBodyBytes: 16384
+  maxHeartbeatBodyBytes: 4096
+  maxObserverSettingsBodyBytes: 4096
+  rateLimits:
+    enabled: true
+    global:
+      windowSeconds: 60
+      maxRequests: 300
+    transaction:
+      windowSeconds: 60
+      maxRequestsPerIp: 10
+      maxConcurrentPerIp: 3
+    heartbeat:
+      windowSeconds: 60
+      maxRequestsPerIp: 10
+      maxRequestsPerNodeId: 2
+    observerSettings:
+      windowSeconds: 60
+      maxRequestsPerIp: 10
+    addressHistory:
+      windowSeconds: 60
+      maxRequestsPerIp: 30
+    blockAndTxLookup:
+      windowSeconds: 60
+      maxRequestsPerIp: 60
+    publicRead:
+      windowSeconds: 60
+      maxRequestsPerIp: 120
+    operator:
+      windowSeconds: 60
+      maxRequestsPerIp: 5
+
+network:
+  heartbeatIntervalSeconds: 60
+  observerOfflineAfterSeconds: 180
+  observerRetentionDays: 180
+  publicObserverListEnabled: true
+  heartbeatRateLimit:
+    windowMs: 60000
+    max: 20
 `;
 }
 
@@ -279,6 +329,10 @@ function setupInlineHtml() {
       label { display: block; margin-bottom: 14px; }
       span { display: block; margin-bottom: 6px; color: var(--muted); font-size: 13px; }
       input { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: #0d1616; color: var(--text); }
+      .check { display: flex; gap: 10px; align-items: flex-start; color: var(--muted); }
+      .check input { width: auto; margin-top: 3px; }
+      .privacy-fields.hidden { display: none; }
+      .hint { color: var(--muted); font-size: 12px; margin: -6px 0 14px; }
       .btn { background: var(--spg-primary); border: none; color: #03120e; padding: 12px 16px; border-radius: 12px; font-weight: 600; cursor: pointer; }
       .error { margin-top: 12px; color: #ff7b7b; font-size: 13px; }
     </style>
@@ -297,6 +351,22 @@ function setupInlineHtml() {
             <span>Local Port</span>
             <input id="port" type="number" min="1024" max="65535" placeholder="3052" required />
           </label>
+          <label class="check">
+            <input id="publicListingEnabled" type="checkbox" />
+            <span>Yes, show this observer publicly</span>
+          </label>
+          <p class="hint">Your observer will still count toward the total active observer count. When disabled, it will not appear in the public observer list.</p>
+          <div class="privacy-fields hidden" id="privacyFields">
+            <label>
+              <span>Public country</span>
+              <input id="countryCode" type="text" maxlength="2" placeholder="BE" />
+            </label>
+            <label>
+              <span>Public node alias (optional)</span>
+              <input id="publicAlias" type="text" maxlength="40" placeholder="Observer" />
+            </label>
+            <p class="hint">Do not enter your computer name, real name, IP address, or other personal information.</p>
+          </div>
           <button class="btn" type="submit">Save & Start</button>
           <div id="setup-error" class="error"></div>
         </form>
@@ -307,22 +377,36 @@ function setupInlineHtml() {
       const errorEl = document.getElementById('setup-error');
       const producerInput = document.getElementById('producerUrl');
       const portInput = document.getElementById('port');
+      const listingInput = document.getElementById('publicListingEnabled');
+      const privacyFields = document.getElementById('privacyFields');
+      const aliasInput = document.getElementById('publicAlias');
+      const countryInput = document.getElementById('countryCode');
       fetch('/setup/defaults').then(r => r.json()).then(d => {
         if (d.producerUrl) producerInput.value = d.producerUrl;
         if (d.port) portInput.value = d.port;
+        listingInput.checked = d.publicListingEnabled === true;
+        aliasInput.value = d.publicAlias || '';
+        countryInput.value = d.countryCode || '';
+        privacyFields.classList.toggle('hidden', !listingInput.checked);
       }).catch(() => {});
+      listingInput.addEventListener('change', () => {
+        privacyFields.classList.toggle('hidden', !listingInput.checked);
+      });
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         errorEl.textContent = '';
         const producerUrl = producerInput.value.trim();
         const port = Number(portInput.value);
+        const publicListingEnabled = listingInput.checked;
+        const publicAlias = publicListingEnabled ? aliasInput.value.trim() : '';
+        const countryCode = publicListingEnabled ? countryInput.value.trim().toUpperCase() : '';
         if (!producerUrl) { errorEl.textContent = 'Producer URL is required.'; return; }
         if (!Number.isFinite(port) || port < 1024 || port > 65535) { errorEl.textContent = 'Port must be between 1024 and 65535.'; return; }
         try {
           const res = await fetch('/setup/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ producerUrl, port })
+            body: JSON.stringify({ producerUrl, port, publicListingEnabled, publicAlias, countryCode })
           });
           const data = await res.json();
           if (!res.ok || !data.ok) throw new Error(data.error || 'Failed to save settings.');
@@ -361,6 +445,7 @@ async function startObserver(config, paths, options = {}) {
   process.env.PORT = String(port);
   process.env.DATA_DIR = paths.dataDir;
   process.env.CONFIG_PATH = paths.configPathYml;
+  saveObserverPrivacySettings(paths.dataDir, config);
 
   require('./server/index.js');
 
@@ -386,7 +471,7 @@ async function startSetup(paths, options = {}) {
   });
 
   app.get('/setup/defaults', (req, res) => {
-    res.json({ producerUrl: DEFAULT_PRODUCER, port: DEFAULT_PORT });
+    res.json({ producerUrl: DEFAULT_PRODUCER, port: DEFAULT_PORT, publicListingEnabled: false, publicAlias: '', countryCode: '' });
   });
 
   const forcedSetupPort = Number(process.env.OBSERVER_SETUP_PORT || SETUP_PORT);
@@ -402,6 +487,7 @@ async function startSetup(paths, options = {}) {
   app.post('/setup/save', async (req, res) => {
     const producerUrl = String(req.body?.producerUrl || '').trim();
     const port = Number(req.body?.port || DEFAULT_PORT);
+    let privacy;
     if (!producerUrl) {
       res.status(400).json({ ok: false, error: 'Producer URL is required.' });
       return;
@@ -410,8 +496,14 @@ async function startSetup(paths, options = {}) {
       res.status(400).json({ ok: false, error: 'Port must be between 1024 and 65535.' });
       return;
     }
+    try {
+      privacy = normalizePrivacy(req.body || {});
+    } catch (err) {
+      res.status(400).json({ ok: false, error: err.message || 'Invalid privacy settings.' });
+      return;
+    }
 
-    const config = { producerUrl, port };
+    const config = { producerUrl, port, ...privacy };
     writeJson(paths.configPath, config);
     res.json({ ok: true, port, noBrowser: !openBrowser });
     server.close(async () => {

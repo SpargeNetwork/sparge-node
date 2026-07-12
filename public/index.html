@@ -16,6 +16,7 @@
     </a>
     <nav class="top-nav">
       <a href="/" class="nav-link active">Explorer</a>
+      <a href="/network" class="nav-link">Network</a>
       <a href="/wallet" class="nav-link">Wallet</a>
       <a href="https://spargenetwork.github.io/sparge-docs/" class="nav-link" target="_blank" rel="noreferrer">Docs</a>
     </nav>
@@ -43,6 +44,14 @@
         <input id="searchInput" type="text" placeholder="Search block / tx / address" />
         <button class="btn ghost" type="submit">Search</button>
       </form>
+    </section>
+    <section class="network-overview" id="networkOverviewSection">
+      <div class="panel-header">
+        <h2>Network Overview</h2>
+        <a class="nav-link" href="/network">Observer Nodes</a>
+      </div>
+      <p class="network-note">Sparge Chain currently uses one official producer. Observer nodes independently sync and validate the chain state.</p>
+      <div class="network-grid" id="networkOverviewPanel"></div>
     </section>
     <section class="stats" id="chainStats"></section>
 

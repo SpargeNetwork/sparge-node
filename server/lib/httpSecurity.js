@@ -5,6 +5,20 @@ function isLocalRequest(req) {
     || ip === '::ffff:127.0.0.1';
 }
 
+const DEFAULT_RATE_LIMITS = {
+  enabled: true,
+  global: { windowSeconds: 60, maxRequests: 300 },
+  transaction: { windowSeconds: 60, maxRequestsPerIp: 10, maxConcurrentPerIp: 3 },
+  heartbeat: { windowSeconds: 60, maxRequestsPerIp: 10, maxRequestsPerNodeId: 2 },
+  observerSettings: { windowSeconds: 60, maxRequestsPerIp: 10 },
+  addressHistory: { windowSeconds: 60, maxRequestsPerIp: 30 },
+  blockAndTxLookup: { windowSeconds: 60, maxRequestsPerIp: 60 },
+  publicRead: { windowSeconds: 60, maxRequestsPerIp: 120 },
+  operator: { windowSeconds: 60, maxRequestsPerIp: 5 }
+};
+
+let lastRateLimitLogAt = 0;
+
 function parseAllowedOrigins(config) {
   const envOrigins = (process.env.CORS_ALLOW_ORIGINS || '')
     .split(',')
@@ -45,12 +59,80 @@ function createCorsMiddleware(config) {
   };
 }
 
-function createRateLimiter(options) {
-  const windowMs = Math.max(1000, Number(options?.windowMs) || 60000);
-  const max = Math.max(1, Number(options?.max) || 600);
+function asPositiveInteger(value, field, max = 1000000) {
+  if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0 && value <= max) return value;
+  if (typeof value === 'string' && /^(0|[1-9][0-9]*)$/.test(value.trim())) {
+    const parsed = Number(value.trim());
+    if (Number.isSafeInteger(parsed) && parsed > 0 && parsed <= max) return parsed;
+  }
+  throw new Error(`${field} must be a positive safe integer <= ${max}`);
+}
+
+function normalizeLimitGroup(input, defaults, name) {
+  const src = input && typeof input === 'object' ? input : {};
+  const out = {};
+  out.windowSeconds = asPositiveInteger(src.windowSeconds ?? defaults.windowSeconds, `security.rateLimits.${name}.windowSeconds`, 86400);
+  for (const [key, value] of Object.entries(defaults)) {
+    if (key === 'windowSeconds') continue;
+    out[key] = asPositiveInteger(src[key] ?? value, `security.rateLimits.${name}.${key}`, 1000000);
+  }
+  return out;
+}
+
+function normalizeRateLimitConfig(config) {
+  if (!config.security) config.security = {};
+  const src = config.security.rateLimits || {};
+  const enabled = src.enabled === undefined ? DEFAULT_RATE_LIMITS.enabled : src.enabled;
+  if (typeof enabled !== 'boolean') throw new Error('security.rateLimits.enabled must be boolean');
+  const out = { enabled };
+  for (const [name, defaults] of Object.entries(DEFAULT_RATE_LIMITS)) {
+    if (name === 'enabled') continue;
+    out[name] = normalizeLimitGroup(src[name], defaults, name);
+  }
+  config.security.rateLimits = out;
+  if (config.security.trustProxy === undefined) config.security.trustProxy = false;
+  const trustProxy = config.security.trustProxy;
+  if (!(trustProxy === false || trustProxy === true || Number.isSafeInteger(trustProxy) || typeof trustProxy === 'string')) {
+    throw new Error('security.trustProxy must be false, true, a hop count, or a trusted proxy string');
+  }
+  return out;
+}
+
+function rateLimitResponse(res, retryAfter) {
+  res.setHeader('Retry-After', String(retryAfter));
+  res.status(429).json({
+    error: 'RATE_LIMITED',
+    message: 'Too many requests. Please try again later.',
+    retryAfterSeconds: retryAfter
+  });
+}
+
+function logRateLimited(req, group, retryAfter) {
+  const now = Date.now();
+  if (now - lastRateLimitLogAt < 30000) return;
+  lastRateLimitLogAt = now;
+  console.warn(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    method: req.method,
+    route: req.originalUrl || req.url,
+    group,
+    status: 429,
+    retryAfterSeconds: retryAfter,
+    source: req.ip ? 'client' : 'unknown'
+  }));
+}
+
+function createRateLimiter(options = {}) {
+  if (options.enabled === false) {
+    return (req, res, next) => next();
+  }
+  const windowMs = Math.max(1000, Number(options.windowMs ?? (Number(options.windowSeconds) * 1000)) || 60000);
+  const max = Math.max(1, Number(options.max ?? options.maxRequests ?? options.maxRequestsPerIp) || 600);
   const keyFn = options?.keyFn || ((req) => req.ip || 'unknown');
   const skip = options?.skip || (() => false);
+  const group = options?.group || 'default';
   const buckets = new Map();
+  let lastCleanup = 0;
 
   return (req, res, next) => {
     if (skip(req)) {
@@ -59,21 +141,72 @@ function createRateLimiter(options) {
     }
 
     const now = Date.now();
+    if (now - lastCleanup > windowMs) {
+      for (const [key, record] of buckets.entries()) {
+        if (record.expiresAt <= now) buckets.delete(key);
+      }
+      lastCleanup = now;
+    }
     const key = keyFn(req);
     const record = buckets.get(key);
+    const resetAt = record && record.expiresAt > now ? record.expiresAt : now + windowMs;
+    const retryAfter = Math.max(1, Math.ceil((resetAt - now) / 1000));
     if (!record || record.expiresAt <= now) {
       buckets.set(key, { count: 1, expiresAt: now + windowMs });
+      res.setHeader('RateLimit-Limit', String(max));
+      res.setHeader('RateLimit-Remaining', String(Math.max(0, max - 1)));
+      res.setHeader('RateLimit-Reset', String(Math.ceil((now + windowMs) / 1000)));
       next();
       return;
     }
 
     record.count += 1;
     if (record.count > max) {
-      const retryAfter = Math.max(1, Math.ceil((record.expiresAt - now) / 1000));
-      res.setHeader('Retry-After', String(retryAfter));
-      res.status(429).json({ error: 'rate limit exceeded' });
+      res.setHeader('RateLimit-Limit', String(max));
+      res.setHeader('RateLimit-Remaining', '0');
+      res.setHeader('RateLimit-Reset', String(Math.ceil(record.expiresAt / 1000)));
+      logRateLimited(req, group, retryAfter);
+      rateLimitResponse(res, retryAfter);
       return;
     }
+    res.setHeader('RateLimit-Limit', String(max));
+    res.setHeader('RateLimit-Remaining', String(Math.max(0, max - record.count)));
+    res.setHeader('RateLimit-Reset', String(Math.ceil(record.expiresAt / 1000)));
+    next();
+  };
+}
+
+function createConcurrencyLimiter(options = {}) {
+  if (options.enabled === false) return (req, res, next) => next();
+  const max = Math.max(1, Number(options.maxConcurrentPerIp) || 3);
+  const keyFn = options.keyFn || ((req) => req.ip || 'unknown');
+  const skip = options.skip || (() => false);
+  const group = options.group || 'concurrency';
+  const inFlight = new Map();
+
+  return (req, res, next) => {
+    if (skip(req)) {
+      next();
+      return;
+    }
+    const key = keyFn(req);
+    const current = inFlight.get(key) || 0;
+    if (current >= max) {
+      logRateLimited(req, group, 1);
+      rateLimitResponse(res, 1);
+      return;
+    }
+    inFlight.set(key, current + 1);
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      const value = inFlight.get(key) || 0;
+      if (value <= 1) inFlight.delete(key);
+      else inFlight.set(key, value - 1);
+    };
+    res.once('finish', release);
+    res.once('close', release);
     next();
   };
 }
@@ -81,5 +214,8 @@ function createRateLimiter(options) {
 module.exports = {
   isLocalRequest,
   createCorsMiddleware,
-  createRateLimiter
+  createRateLimiter,
+  createConcurrencyLimiter,
+  normalizeRateLimitConfig,
+  DEFAULT_RATE_LIMITS
 };

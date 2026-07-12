@@ -1,14 +1,20 @@
 const path = require('path');
 const express = require('express');
 const {
-  normalizeTxInput,
   deriveAddress,
   verifySignature,
   createTxId,
-  buildMessage,
-  isHex
+  buildMessage
 } = require('../lib/tx');
 const { PARTICIPANT_BOND_MICRO, MAX_SPONSORED_PARTICIPANTS } = require('../lib/participants');
+const { validateBody, validateParams, validateQuery } = require('../lib/validation/middleware');
+const {
+  addressParams,
+  heightParams,
+  txidParams,
+  addressTxsQuery,
+  signedTxBody
+} = require('../lib/validation/schemas');
 
 const publicIndex = path.join(__dirname, '..', '..', 'public', 'index.html');
 
@@ -23,18 +29,18 @@ function rpcRouter(blockchain, mempool, config) {
     res.json(blockchain.getGenesis());
   });
 
-  router.get('/balance/:addr', (req, res) => {
+  router.get('/balance/:addr', validateParams(addressParams), (req, res) => {
     const balance = blockchain.getBalanceUnits(req.params.addr);
     res.json({ address: req.params.addr, balanceMicro: balance });
   });
 
-  router.get('/nonce/:addr', (req, res) => {
+  router.get('/nonce/:addr', validateParams(addressParams), (req, res) => {
     const nonce = blockchain.getNonce(req.params.addr);
     res.json({ address: req.params.addr, nonce });
   });
 
-  router.get('/block/:height', (req, res) => {
-    const height = Number(req.params.height);
+  router.get('/block/:height', validateParams(heightParams), (req, res) => {
+    const height = req.params.height;
     const block = blockchain.getBlockByHeight(height);
     if (!block) {
       res.status(404).json({ error: 'block not found' });
@@ -43,7 +49,7 @@ function rpcRouter(blockchain, mempool, config) {
     res.json(block);
   });
 
-  router.get('/tx/:txid', (req, res) => {
+  router.get('/tx/:txid', validateParams(txidParams), (req, res) => {
     if (req.baseUrl !== '/api' && req.accepts('html')) {
       res.sendFile(publicIndex);
       return;
@@ -57,18 +63,18 @@ function rpcRouter(blockchain, mempool, config) {
     res.json(tx);
   });
 
-  router.get('/address/:addr', (req, res) => {
+  router.get('/address/:addr', validateParams(addressParams), (req, res) => {
     const stats = blockchain.getAddressStats(req.params.addr);
     res.json(stats);
   });
 
-  router.get('/address/:addr/txs', (req, res) => {
-    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+  router.get('/address/:addr/txs', validateParams(addressParams), validateQuery(addressTxsQuery), (req, res) => {
+    const limit = req.query.limit;
     const txs = blockchain.getAddressTxs(req.params.addr, limit);
     res.json({ address: req.params.addr, txs });
   });
 
-  router.post('/tx', (req, res) => {
+  router.post('/tx', validateBody(signedTxBody), (req, res) => {
     if (config.node?.mode === 'observer') {
       res.status(403).json({ error: 'observer node is read-only' });
       return;
@@ -78,47 +84,7 @@ function rpcRouter(blockchain, mempool, config) {
       return;
     }
 
-    let tx;
-    try {
-      tx = normalizeTxInput(req.body || {});
-    } catch (err) {
-      res.status(400).json({ error: err.message });
-      return;
-    }
-
-    tx.type = (tx.type || '').toLowerCase();
-    tx.from = tx.from || '';
-    tx.to = tx.to || '';
-    tx.publicKeyHex = (tx.publicKeyHex || '').toLowerCase();
-    tx.signatureHex = (tx.signatureHex || '').toLowerCase();
-    tx.sponsor = tx.sponsor || '';
-    tx.participant = tx.participant || '';
-    if (typeof tx.memo === 'string') tx.memo = tx.memo;
-
-    if (!tx.type || !tx.publicKeyHex || !tx.signatureHex || !tx.chainId) {
-      res.status(400).json({ error: 'missing required fields' });
-      return;
-    }
-
-    if (!isHex(tx.publicKeyHex, 64)) {
-      res.status(400).json({ error: 'publicKeyHex must be 64 hex chars' });
-      return;
-    }
-    if (!isHex(tx.signatureHex)) {
-      res.status(400).json({ error: 'signatureHex must be hex' });
-      return;
-    }
-
-    if (tx.memo && tx.memo.length > 128) {
-      res.status(400).json({ error: 'memo must be <= 128 chars' });
-      return;
-    }
-
-    const validTypes = new Set(['transfer', 'register_participant', 'unregister_participant', 'heartbeat']);
-    if (!validTypes.has(tx.type)) {
-      res.status(400).json({ error: 'invalid tx type' });
-      return;
-    }
+    const tx = req.body;
 
     if (tx.chainId !== config.chain.chainId) {
       res.status(400).json({ error: 'invalid chainId' });

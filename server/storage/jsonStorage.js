@@ -6,6 +6,7 @@ class JsonStorage {
   constructor(dataDir, config) {
     this.dataDir = dataDir;
     this.config = config;
+    this.observerNodes = new Map();
     ensureDir(dataDir);
   }
 
@@ -136,6 +137,49 @@ class JsonStorage {
     appendBlock(this.dataDir, this.config.storage.blocksPerFile, block);
     saveMeta(this.dataDir, meta);
     saveLedger(this.dataDir, ledger);
+  }
+
+  upsertObserverNode(observer) {
+    const existing = this.observerNodes.get(observer.nodeId);
+    const now = observer.lastSeen || Date.now();
+    this.observerNodes.set(observer.nodeId, {
+      ...(existing || {}),
+      ...observer,
+      nodeName: '',
+      country: '',
+      publicListingEnabled: observer.publicListingEnabled === true,
+      publicAlias: observer.publicListingEnabled && observer.publicAlias ? observer.publicAlias : '',
+      countryCode: observer.publicListingEnabled && observer.countryCode ? observer.countryCode : '',
+      firstSeen: existing?.firstSeen || observer.firstSeen || now,
+      lastSeen: now
+    });
+  }
+
+  listObserverNodes({ limit = 50, offset = 0, countryCode = '', version = '', publicOnly = false } = {}) {
+    let observers = Array.from(this.observerNodes.values());
+    if (publicOnly) observers = observers.filter((node) => node.publicListingEnabled === true);
+    if (countryCode) observers = observers.filter((node) => node.countryCode === countryCode);
+    if (version) observers = observers.filter((node) => node.version === version);
+    observers.sort((a, b) => Number(b.lastSeen || 0) - Number(a.lastSeen || 0));
+    return {
+      total: observers.length,
+      observers: observers.slice(offset, offset + limit)
+    };
+  }
+
+  getAllObserverNodes() {
+    return Array.from(this.observerNodes.values()).sort((a, b) => Number(b.lastSeen || 0) - Number(a.lastSeen || 0));
+  }
+
+  deleteObserverNodesLastSeenBefore(cutoffMs) {
+    let count = 0;
+    for (const [nodeId, observer] of this.observerNodes.entries()) {
+      if (Number(observer.lastSeen || 0) < cutoffMs) {
+        this.observerNodes.delete(nodeId);
+        count += 1;
+      }
+    }
+    return count;
   }
 
   close() {}

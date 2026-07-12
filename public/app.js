@@ -25,6 +25,8 @@ let observerStartMs = Date.now();
 let observerLastHeight = null;
 let observerLastSyncState = null;
 let observerLastError = null;
+let latestNetworkStatus = null;
+let observerNodesPage = 1;
 
 const blocksTable = document.getElementById('blocksTable');
 const pagerTop = document.getElementById('pagerTop');
@@ -122,6 +124,20 @@ const viewBasicBtn = document.getElementById('viewBasic');
 const viewAdvancedBtn = document.getElementById('viewAdvanced');
 const blockTabButtons = document.querySelectorAll('.block-tabs .tab-btn');
 const blockTabPanels = document.querySelectorAll('.block-tab-panel');
+const networkOverviewPanel = document.getElementById('networkOverviewPanel');
+const networkHealthPanel = document.getElementById('networkHealthPanel');
+const observerNodesList = document.getElementById('observerNodesList');
+const observerPager = document.getElementById('observerPager');
+const observerFilters = document.getElementById('observerFilters');
+const observerStatusFilter = document.getElementById('observerStatusFilter');
+const observerCountryFilter = document.getElementById('observerCountryFilter');
+const observerVersionFilter = document.getElementById('observerVersionFilter');
+const observerPrivacyForm = document.getElementById('observerPrivacyForm');
+const observerPublicListingEnabled = document.getElementById('observerPublicListingEnabled');
+const observerPrivacyFields = document.getElementById('observerPrivacyFields');
+const observerCountryCode = document.getElementById('observerCountryCode');
+const observerPublicAlias = document.getElementById('observerPublicAlias');
+const observerPrivacyStatus = document.getElementById('observerPrivacyStatus');
 
 function shortHash(hash) {
   if (!hash) return '-';
@@ -131,6 +147,15 @@ function shortHash(hash) {
 function shortAddress(address) {
   if (!address) return '-';
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function addressLink(address, label) {
@@ -388,9 +413,200 @@ async function fetchMiningStatus() {
   return res.json();
 }
 
+async function fetchMempool() {
+  const res = await fetch('/api/mempool');
+  if (!res.ok) return { count: 0, transactions: [] };
+  return res.json();
+}
+
+async function fetchNetworkStatus() {
+  const res = await fetch('/api/network/status');
+  if (!res.ok) return null;
+  return res.json();
+}
+
+async function fetchObserverNodes(page = 1) {
+  const params = new URLSearchParams();
+  params.set('page', String(page));
+  params.set('limit', '12');
+  if (observerStatusFilter?.value) params.set('status', observerStatusFilter.value);
+  if (observerCountryFilter?.value) params.set('country', observerCountryFilter.value.trim().toUpperCase());
+  if (observerVersionFilter?.value) params.set('version', observerVersionFilter.value.trim());
+  const res = await fetch(`/api/network/observers?${params.toString()}`);
+  if (!res.ok) return { page, limit: 12, total: 0, observers: [] };
+  return res.json();
+}
+
+async function fetchObserverSettings() {
+  const res = await fetch('/api/observer/settings');
+  if (!res.ok) return null;
+  return res.json();
+}
+
+async function saveObserverSettings(settings) {
+  const res = await fetch('/api/observer/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings)
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Unable to save privacy settings.');
+  return data.settings;
+}
+
 async function setMining(active) {
   await fetch(`/api/mining/${active ? 'start' : 'stop'}`, { method: 'POST' });
   updateMiningStatus();
+}
+
+function formatSecondsAgo(seconds) {
+  const s = Number(seconds);
+  if (!Number.isFinite(s)) return '-';
+  if (s < 60) return `${Math.max(0, Math.floor(s))} seconds ago`;
+  const mins = Math.floor(s / 60);
+  if (mins < 60) return `${mins} minutes ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} hours ago`;
+  return `${Math.floor(hours / 24)} days ago`;
+}
+
+function networkCard(label, value, sub = '') {
+  return `
+    <div class="network-card">
+      <div class="stat-label">${label}</div>
+      <div class="stat-value">${value}</div>
+      ${sub ? `<div class="stat-sub">${sub}</div>` : ''}
+    </div>
+  `;
+}
+
+function formatDateTime(iso) {
+  if (!iso) return '-';
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return '-';
+  return date.toLocaleString('nl-NL', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+}
+
+function renderNetworkOverview(network) {
+  if (!network) return;
+  const lastBlock = network.lastBlockTimestamp ? formatDateTime(network.lastBlockTimestamp) : '-';
+  const lastBlockRelative = network.lastBlockTimestamp ? formatRelativeTime(network.lastBlockTimestamp) : '';
+  const pending = formatNumber(network.mempoolSize ?? 0);
+  const html = [
+    networkCard('Official Producers', formatNumber(network.producerCount ?? 1), network.producer?.online ? 'Producer online' : 'Producer offline'),
+    networkCard('Active Observer Nodes', formatNumber(network.activeObserverCount ?? 0), 'Recent heartbeat, healthy status'),
+    networkCard('Fully Synced Observers', formatNumber(network.fullySyncedObserverCount ?? 0)),
+    networkCard('Syncing Observers', formatNumber(network.syncingObserverCount ?? 0)),
+    networkCard('Current Chain Height', formatNumber(network.currentHeight ?? 0)),
+    networkCard('Last Block Time', lastBlock, lastBlockRelative),
+    networkCard('Average Block Time', `${formatNumber(network.averageBlockTimeSeconds ?? 0)} sec`),
+    networkCard('Pending Transactions', pending)
+  ].join('');
+  if (networkOverviewPanel) networkOverviewPanel.innerHTML = html;
+}
+
+function renderNetworkHealth(network) {
+  if (!networkHealthPanel || !network) return;
+  networkHealthPanel.innerHTML = [
+    networkCard('Producer Online', network.producer?.online ? 'Yes' : 'No'),
+    networkCard('Active Observers', formatNumber(network.activeObserverCount ?? 0)),
+    networkCard('Fully Synced', formatNumber(network.fullySyncedObserverCount ?? 0)),
+    networkCard('Syncing', formatNumber(network.syncingObserverCount ?? 0)),
+    networkCard('Mismatch', formatNumber(network.mismatchObserverCount ?? 0)),
+    networkCard('Highest Height', formatNumber(network.highestObserverHeight ?? 0)),
+    networkCard('Lowest Height', formatNumber(network.lowestObserverHeight ?? 0)),
+    networkCard('Average Lag', `${formatNumber(network.averageObserverLag ?? 0)} blocks`)
+  ].join('');
+}
+
+function observerStatusLabel(status) {
+  if (status === 'fully_synced') return 'Fully Synced';
+  if (status === 'syncing') return 'Syncing';
+  if (status === 'mismatch') return 'Mismatch';
+  if (status === 'offline') return 'Offline';
+  return status || '-';
+}
+
+function countryFlag(code) {
+  if (!/^[A-Z]{2}$/.test(code || '')) return '';
+  return Array.from(code).map((ch) => String.fromCodePoint(ch.charCodeAt(0) + 127397)).join('');
+}
+
+function countryName(code) {
+  if (!/^[A-Z]{2}$/.test(code || '')) return 'Location not shared';
+  try {
+    if (Intl.DisplayNames) {
+      const names = new Intl.DisplayNames(['en'], { type: 'region' });
+      return names.of(code) || code;
+    }
+  } catch {
+    // fall back to code
+  }
+  return code;
+}
+
+function sharedLocationLabel(code) {
+  if (!/^[A-Z]{2}$/.test(code || '')) return 'Location not shared';
+  return `${countryFlag(code)} ${countryName(code)}`;
+}
+
+function renderObserverNodes(data) {
+  if (!observerNodesList) return;
+  const observers = Array.isArray(data?.observers) ? data.observers : [];
+  if (!observers.length) {
+    observerNodesList.innerHTML = '<div class="detail-empty">No observer nodes found.</div>';
+  } else {
+    observerNodesList.innerHTML = observers.map((node) => `
+      <article class="observer-node-card ${escapeHtml(node.status)}">
+        <div class="observer-node-country">${escapeHtml(sharedLocationLabel(node.countryCode || ''))}</div>
+        <div class="observer-node-title">${escapeHtml(node.publicAlias || 'Observer')}</div>
+        <div><span class="observer-status ${escapeHtml(node.status)}">${observerStatusLabel(node.status)}</span></div>
+        <div class="observer-node-meta">
+          <span>Height: <strong>${formatNumber(node.height ?? 0)}</strong></span>
+          <span>Lag: <strong>${formatNumber(node.lag ?? 0)} blocks</strong></span>
+          <span>Version: <strong>${escapeHtml(node.version || '-')}</strong></span>
+          <span>Last Seen: <strong>${formatSecondsAgo(node.secondsSinceLastSeen)}</strong></span>
+        </div>
+      </article>
+    `).join('');
+  }
+
+  if (!observerPager) return;
+  const page = Number(data?.page || observerNodesPage);
+  const limit = Number(data?.limit || 12);
+  const total = Number(data?.total || 0);
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  observerPager.innerHTML = `
+    <div class="pager">
+      <button data-observer-page="prev" ${page <= 1 ? 'disabled' : ''}>Prev</button>
+      <span>Page ${formatNumber(page)} / ${formatNumber(totalPages)}</span>
+      <button data-observer-page="next" ${page >= totalPages ? 'disabled' : ''}>Next</button>
+    </div>
+  `;
+  observerPager.querySelectorAll('button[data-observer-page]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const action = btn.dataset.observerPage;
+      if (action === 'prev' && observerNodesPage > 1) observerNodesPage -= 1;
+      if (action === 'next' && observerNodesPage < totalPages) observerNodesPage += 1;
+      refreshNetworkPage();
+    });
+  });
+}
+
+function renderObserverPrivacySettings(settings) {
+  if (!observerPrivacyForm || !settings) return;
+  observerPublicListingEnabled.checked = settings.publicListingEnabled === true;
+  observerPublicAlias.value = settings.publicAlias || '';
+  observerCountryCode.value = settings.countryCode || '';
+  observerPrivacyFields.classList.toggle('hidden', !observerPublicListingEnabled.checked);
 }
 
 function renderPanels() {
@@ -1495,12 +1711,14 @@ async function updateMiningStatus() {
 
 async function refreshAll() {
   if (blocksTable || chainStats || statusPanel) {
-    const [state, status, genesis] = await Promise.all([fetchState(), fetchStatus(), fetchGenesis()]);
+    const [state, status, genesis, network] = await Promise.all([fetchState(), fetchStatus(), fetchGenesis(), fetchNetworkStatus()]);
     latestState = status;
     latestGenesis = genesis;
     latestChainState = state;
+    latestNetworkStatus = network;
     renderPanels();
     renderStats(state);
+    renderNetworkOverview(network);
     await refreshBlocks();
     renderObserverSync(status);
     renderObserverTxList(state);
@@ -1530,9 +1748,26 @@ async function refreshAll() {
   }
 }
 
+async function refreshNetworkPage() {
+  if (!networkHealthPanel && !observerNodesList) return;
+  const [network, observers] = await Promise.all([
+    fetchNetworkStatus(),
+    fetchObserverNodes(observerNodesPage)
+  ]);
+  latestNetworkStatus = network;
+  renderNetworkHealth(network);
+  renderObserverNodes(observers);
+}
+
 function startAutoRefresh() {
   if (refreshTimer) clearInterval(refreshTimer);
-  refreshTimer = setInterval(refreshAll, 5000);
+  refreshTimer = setInterval(() => {
+    if (networkHealthPanel || observerNodesList) {
+      refreshNetworkPage();
+      return;
+    }
+    refreshAll();
+  }, 5000);
 }
 
 function setView(mode) {
@@ -1848,7 +2083,14 @@ function renderWallet() {
 async function refreshWalletState() {
   if (!walletState) return;
   try {
-    const stats = await fetch(`/api/address/${walletState.address}`).then((r) => r.json());
+    const [stats, mempool] = await Promise.all([
+      fetch(`/api/address/${walletState.address}`).then((r) => r.json()),
+      fetchMempool()
+    ]);
+    const pendingRegistration = Array.isArray(mempool.transactions)
+      && mempool.transactions.some((tx) => tx.type === 'register_participant'
+        && tx.participant === walletState.address
+        && tx.from === walletState.address);
     const decimals = latestChainState?.decimals ?? 6;
     const balanceValue = formatTokenAmount(stats.balanceMicro, decimals, 6);
     const symbol = latestChainState?.symbol ?? '';
@@ -1890,7 +2132,8 @@ async function refreshWalletState() {
           participationTabBtn.classList.toggle('highlight', participant.status !== 'active');
         }
       } else {
-        if (participantPending) {
+        if (participantPending || pendingRegistration) {
+          participantPending = true;
           participantStatusEl.textContent = 'Pending';
           if (participantBadgeEl) {
             participantBadgeEl.textContent = 'Pending';
@@ -2627,12 +2870,48 @@ window.addEventListener('popstate', () => {
 
 const isExplorerPage = Boolean(blocksTable || chainStats || statusPanel);
 const isWalletPage = Boolean(devWalletPanel);
+const isNetworkPage = Boolean(networkHealthPanel || observerNodesList);
 
 if (isExplorerPage) {
   refreshAll();
   startAutoRefresh();
   maybeLoadBlockFromQuery();
   maybeLoadAddressFromQuery();
+}
+
+if (isNetworkPage) {
+  refreshNetworkPage();
+  startAutoRefresh();
+}
+
+if (observerFilters) {
+  observerFilters.addEventListener('submit', (event) => {
+    event.preventDefault();
+    observerNodesPage = 1;
+    refreshNetworkPage();
+  });
+}
+
+if (observerPrivacyForm) {
+  fetchObserverSettings().then(renderObserverPrivacySettings);
+  observerPublicListingEnabled.addEventListener('change', () => {
+    observerPrivacyFields.classList.toggle('hidden', !observerPublicListingEnabled.checked);
+  });
+  observerPrivacyForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (observerPrivacyStatus) observerPrivacyStatus.textContent = '';
+    try {
+      const settings = await saveObserverSettings({
+        publicListingEnabled: observerPublicListingEnabled.checked,
+        publicAlias: observerPublicListingEnabled.checked ? observerPublicAlias.value : '',
+        countryCode: observerPublicListingEnabled.checked ? observerCountryCode.value.trim().toUpperCase() : ''
+      });
+      renderObserverPrivacySettings(settings);
+      if (observerPrivacyStatus) observerPrivacyStatus.textContent = 'Privacy settings saved. Future heartbeats will use them.';
+    } catch (err) {
+      if (observerPrivacyStatus) observerPrivacyStatus.textContent = err.message || 'Unable to save privacy settings.';
+    }
+  });
 }
 
 if (window.location.pathname.startsWith('/block/')) {

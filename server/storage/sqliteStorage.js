@@ -99,7 +99,40 @@ class SqliteStorage {
         balanceMicro TEXT NOT NULL,
         PRIMARY KEY (addr, height)
       );
+
+      CREATE TABLE IF NOT EXISTS observer_nodes (
+        nodeId TEXT PRIMARY KEY,
+        nodeName TEXT,
+        remoteIp TEXT,
+        country TEXT,
+        publicListingEnabled INTEGER NOT NULL DEFAULT 0,
+        publicAlias TEXT,
+        countryCode TEXT,
+        version TEXT,
+        height INTEGER NOT NULL,
+        latestHash TEXT,
+        firstSeen INTEGER NOT NULL,
+        lastSeen INTEGER NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_observer_nodes_last_seen ON observer_nodes(lastSeen DESC);
+      CREATE INDEX IF NOT EXISTS idx_observer_nodes_country ON observer_nodes(country);
+      CREATE INDEX IF NOT EXISTS idx_observer_nodes_version ON observer_nodes(version);
     `);
+    this._ensureObserverColumn('publicListingEnabled', 'INTEGER NOT NULL DEFAULT 0');
+    this._ensureObserverColumn('publicAlias', 'TEXT');
+    this._ensureObserverColumn('countryCode', 'TEXT');
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_observer_nodes_country_code ON observer_nodes(countryCode);
+      CREATE INDEX IF NOT EXISTS idx_observer_nodes_public_listing ON observer_nodes(publicListingEnabled);
+    `);
+    this.db.prepare('UPDATE observer_nodes SET publicListingEnabled = 0, publicAlias = NULL, countryCode = NULL, nodeName = NULL, country = NULL WHERE publicListingEnabled IS NULL OR nodeName IS NOT NULL').run();
+  }
+
+  _ensureObserverColumn(name, definition) {
+    const cols = this.db.prepare('PRAGMA table_info(observer_nodes)').all();
+    if (cols.some((col) => col.name === name)) return;
+    this.db.exec(`ALTER TABLE observer_nodes ADD COLUMN ${name} ${definition}`);
   }
 
   _getMeta(key) {
@@ -398,6 +431,74 @@ class SqliteStorage {
     });
 
     trx();
+  }
+
+  upsertObserverNode(observer) {
+    const now = observer.lastSeen || Date.now();
+    this.db.prepare(`
+      INSERT INTO observer_nodes(nodeId, nodeName, remoteIp, country, publicListingEnabled, publicAlias, countryCode, version, height, latestHash, firstSeen, lastSeen)
+      VALUES(@nodeId, NULL, @remoteIp, NULL, @publicListingEnabled, @publicAlias, @countryCode, @version, @height, @latestHash, @firstSeen, @lastSeen)
+      ON CONFLICT(nodeId) DO UPDATE SET
+        remoteIp = excluded.remoteIp,
+        nodeName = NULL,
+        country = NULL,
+        publicListingEnabled = excluded.publicListingEnabled,
+        publicAlias = excluded.publicAlias,
+        countryCode = excluded.countryCode,
+        version = excluded.version,
+        height = excluded.height,
+        latestHash = excluded.latestHash,
+        lastSeen = excluded.lastSeen
+    `).run({
+      nodeId: observer.nodeId,
+      remoteIp: observer.remoteIp || '',
+      publicListingEnabled: observer.publicListingEnabled ? 1 : 0,
+      publicAlias: observer.publicListingEnabled && observer.publicAlias ? observer.publicAlias : null,
+      countryCode: observer.publicListingEnabled && observer.countryCode ? observer.countryCode : null,
+      version: observer.version || '',
+      height: Number(observer.height || 0),
+      latestHash: observer.latestHash || '',
+      firstSeen: observer.firstSeen || now,
+      lastSeen: now
+    });
+  }
+
+  listObserverNodes({ limit = 50, offset = 0, countryCode = '', version = '', publicOnly = false } = {}) {
+    const where = [];
+    const params = {};
+    if (publicOnly) {
+      where.push('publicListingEnabled = 1');
+    }
+    if (countryCode) {
+      where.push('countryCode = @countryCode');
+      params.countryCode = countryCode;
+    }
+    if (version) {
+      where.push('version = @version');
+      params.version = version;
+    }
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const total = this.db.prepare(`SELECT COUNT(*) as count FROM observer_nodes ${whereSql}`).get(params)?.count ?? 0;
+    const rows = this.db.prepare(`
+      SELECT nodeId, nodeName, remoteIp, country, publicListingEnabled, publicAlias, countryCode, version, height, latestHash, firstSeen, lastSeen
+      FROM observer_nodes
+      ${whereSql}
+      ORDER BY lastSeen DESC
+      LIMIT @limit OFFSET @offset
+    `).all({ ...params, limit: Number(limit), offset: Number(offset) });
+    return { total, observers: rows };
+  }
+
+  getAllObserverNodes() {
+    return this.db.prepare(`
+      SELECT nodeId, nodeName, remoteIp, country, publicListingEnabled, publicAlias, countryCode, version, height, latestHash, firstSeen, lastSeen
+      FROM observer_nodes
+      ORDER BY lastSeen DESC
+    `).all();
+  }
+
+  deleteObserverNodesLastSeenBefore(cutoffMs) {
+    return this.db.prepare('DELETE FROM observer_nodes WHERE lastSeen < ?').run(Number(cutoffMs)).changes;
   }
 
   close() {

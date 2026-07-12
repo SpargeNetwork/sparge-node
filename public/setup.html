@@ -27,6 +27,22 @@
               <span>Local Port</span>
               <input id="port" type="number" min="1024" max="65535" placeholder="3052" required />
             </label>
+            <label class="field check-field">
+              <input id="publicListingEnabled" type="checkbox" />
+              <span>Yes, show this observer publicly</span>
+            </label>
+            <p class="muted">Your observer will still count toward the total active observer count. When disabled, it will not appear in the public observer list.</p>
+            <div id="privacyFields" class="hidden">
+              <label class="field">
+                <span>Public country</span>
+                <input id="countryCode" type="text" maxlength="2" placeholder="BE" />
+              </label>
+              <label class="field">
+                <span>Public node alias (optional)</span>
+                <input id="publicAlias" type="text" maxlength="40" placeholder="Observer" />
+              </label>
+              <p class="muted">Do not enter your computer name, real name, IP address, or other personal information.</p>
+            </div>
             <div class="actions">
               <button type="submit" class="btn primary">Save & Start</button>
             </div>

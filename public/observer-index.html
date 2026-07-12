@@ -39,6 +39,29 @@
         <div class="observer-state-grid" id="observerStatePanel"></div>
         <div class="observer-readonly-note">READ ONLY: this node validates and serves explorer data, but cannot submit transactions.</div>
       </div>
+      <div class="observer-node-state">
+        <div class="observer-pane-title">Privacy Settings</div>
+        <form class="observer-settings-form" id="observerPrivacyForm">
+          <label class="field check-field">
+            <input id="observerPublicListingEnabled" type="checkbox" />
+            <span>Appear in public observer list</span>
+          </label>
+          <p class="network-note">Private observers still count toward aggregate network statistics.</p>
+          <div id="observerPrivacyFields" class="observer-privacy-fields hidden">
+            <label class="field">
+              <span>Public country</span>
+              <input id="observerCountryCode" type="text" maxlength="2" placeholder="BE" />
+            </label>
+            <label class="field">
+              <span>Public alias</span>
+              <input id="observerPublicAlias" type="text" maxlength="40" placeholder="Observer" />
+            </label>
+            <p class="network-note">Do not enter your computer name, real name, IP address, or other personal information.</p>
+          </div>
+          <button class="btn ghost" type="submit">Save Privacy</button>
+          <div class="status" id="observerPrivacyStatus"></div>
+        </form>
+      </div>
       <div class="observer-log-pane">
         <div class="observer-pane-title">Live Log Feed</div>
         <pre class="observer-log-feed" id="observerLogFeed"></pre>

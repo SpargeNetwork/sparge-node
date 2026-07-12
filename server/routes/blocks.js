@@ -1,5 +1,7 @@
 const express = require('express');
 const { createRateLimiter } = require('../lib/httpSecurity');
+const { validateQuery } = require('../lib/validation/middleware');
+const { blocksQuery } = require('../lib/validation/schemas');
 
 function blocksRouter(blockchain, config) {
   const router = express.Router();
@@ -9,24 +11,13 @@ function blocksRouter(blockchain, config) {
     keyFn: (req) => req.ip || req.socket?.remoteAddress || 'unknown'
   });
 
-  router.get('/', (req, res) => {
+  router.get('/', validateQuery(blocksQuery), (req, res) => {
     if (req.query.fromHeight !== undefined) {
       syncRateLimiter(req, res, () => {});
       if (res.headersSent) return;
 
-      const fromRaw = Number(req.query.fromHeight);
-      const limitRaw = req.query.limit === undefined ? 50 : Number(req.query.limit);
-      if (!Number.isFinite(fromRaw) || !Number.isInteger(fromRaw) || fromRaw < 0) {
-        res.status(400).json({ error: 'fromHeight must be a non-negative integer' });
-        return;
-      }
-      if (!Number.isFinite(limitRaw) || !Number.isInteger(limitRaw) || limitRaw < 1) {
-        res.status(400).json({ error: 'limit must be a positive integer' });
-        return;
-      }
-
-      const fromHeight = fromRaw;
-      const limit = Math.min(200, limitRaw);
+      const fromHeight = req.query.fromHeight;
+      const limit = req.query.limit;
       const blocks = blockchain.getBlocksFromHeight(fromHeight, limit);
       const state = blockchain.getState();
       res.json({
@@ -41,8 +32,8 @@ function blocksRouter(blockchain, config) {
       return;
     }
 
-    const page = Math.max(1, Number(req.query.page) || 1);
-    const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 10));
+    const page = req.query.page;
+    const limit = req.query.limit;
     const offset = (page - 1) * limit;
     const { total, blocks } = blockchain.getBlocks(offset, limit);
     res.json({

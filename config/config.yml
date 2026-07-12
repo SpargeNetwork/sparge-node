@@ -12,7 +12,7 @@ token:
 
 mining:
   proposerAddress: "spg_3D9sm1pyziUMXCkqYaJML3KJRpPd"
-  genesisOperatorAddress: "spg_2B4XVJv4GzPNCeP5ECCVPEB7AWX9"
+  genesisOperatorAddress: "spg_2jCwDGKiH9CdfhkAZWKv6fSiAacn"
   genesisFreeBlocks: 100
 
 rewards:
@@ -41,7 +41,6 @@ dev:
   enableAdmin: false
 
 http:
-  jsonBodyLimit: "64kb"
   corsAllowedOrigins:
     - "http://localhost:3051"
     - "http://127.0.0.1:3051"
@@ -57,6 +56,41 @@ http:
     windowMs: 60000
     max: 120
 
+security:
+  trustProxy: false
+  maxJsonBodyBytes: 32768
+  maxTransactionBodyBytes: 16384
+  maxHeartbeatBodyBytes: 4096
+  maxObserverSettingsBodyBytes: 4096
+  rateLimits:
+    enabled: true
+    global:
+      windowSeconds: 60
+      maxRequests: 300
+    transaction:
+      windowSeconds: 60
+      maxRequestsPerIp: 10
+      maxConcurrentPerIp: 3
+    heartbeat:
+      windowSeconds: 60
+      maxRequestsPerIp: 10
+      maxRequestsPerNodeId: 2
+    observerSettings:
+      windowSeconds: 60
+      maxRequestsPerIp: 10
+    addressHistory:
+      windowSeconds: 60
+      maxRequestsPerIp: 30
+    blockAndTxLookup:
+      windowSeconds: 60
+      maxRequestsPerIp: 60
+    publicRead:
+      windowSeconds: 60
+      maxRequestsPerIp: 120
+    operator:
+      windowSeconds: 60
+      maxRequestsPerIp: 5
+
 node:
   mode: producer
   producerUrl: "http://localhost:3051"
@@ -64,3 +98,17 @@ node:
     batchSize: 50
     intervalMs: 2000
     timeoutMs: 5000
+
+observer:
+  publicListingEnabled: false
+  publicAlias: ""
+  countryCode: ""
+
+network:
+  heartbeatIntervalSeconds: 60
+  observerOfflineAfterSeconds: 180
+  observerRetentionDays: 180
+  publicObserverListEnabled: true
+  heartbeatRateLimit:
+    windowMs: 60000
+    max: 20

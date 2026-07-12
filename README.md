@@ -48,6 +48,8 @@ Observer mode:
 - validates/applies blocks locally
 - serves explorer UI
 - rejects tx submission (`POST /api/tx` -> `403`)
+- sends a periodic private heartbeat to the producer so aggregate network health can count active observers
+- public observer listing is opt-in; hostnames and IP addresses are not publicly displayed
 
 Run observer from source:
 - set in config: `node.mode: observer`
@@ -72,6 +74,8 @@ First run:
 All JSON endpoints are under `/api`.
 Examples:
 - `/api/status`
+- `/api/network/status`
+- `/api/network/observers`
 - `/api/block/:height`
 - `/api/tx/:txid`
 - `/api/address/:addr`
@@ -80,6 +84,12 @@ Examples:
 
 - Changelog: `CHANGELOG.md`
 - Release notes template: `docs/RELEASE_TEMPLATE.md`
+
+## API Safety
+
+Malformed API bodies, route params, and query strings are rejected with a structured `VALIDATION_ERROR` response before route logic runs. See `docs/validation.md`.
+Oversized JSON bodies are rejected with `PAYLOAD_TOO_LARGE` before schema validation. See `docs/request-size-limits.md`.
+Public API routes use endpoint-specific in-memory rate limits and return `RATE_LIMITED` with `Retry-After` when exceeded. See `docs/rate-limits.md`.
 
 ## Notes
 

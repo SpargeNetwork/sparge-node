@@ -41,6 +41,8 @@ publicKeyHex, signatureHex, sponsor, participant, memo
 Notes:
 - In observer mode, `POST /api/tx` returns `403`.
 - Canonical message order includes `type` as first field.
+- Transaction payloads are strict. Empty fields such as `to`, `sponsor`, `participant`, and `memo` must be sent as empty strings when the transaction type does not use them.
+- Malformed params, queries, and request bodies return a structured `VALIDATION_ERROR`; see `docs/validation.md`.
 
 ## Address
 

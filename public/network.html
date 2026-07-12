@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sparge Network</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <a class="brand" href="/">
+      <img src="/assets/sparge_logo.png" alt="Sparge logo" class="logo-img" />
+      <div class="title">Sparge</div>
+    </a>
+    <nav class="top-nav">
+      <a href="/" class="nav-link">Explorer</a>
+      <a href="/network" class="nav-link active">Network</a>
+      <a href="/wallet" class="nav-link">Wallet</a>
+      <a href="https://spargenetwork.github.io/sparge-docs/" class="nav-link" target="_blank" rel="noreferrer">Docs</a>
+    </nav>
+    <div class="header-actions"></div>
+  </header>
+
+  <main>
+    <section class="network-overview">
+      <div class="panel-header">
+        <h2>Network Health</h2>
+      </div>
+      <p class="network-note">Sparge Chain currently uses one official producer. Observer nodes independently sync and validate the chain state.</p>
+      <p class="network-note">Only observers that opted into public listing appear here. Private observers are still included in aggregate network statistics.</p>
+      <div class="network-grid" id="networkHealthPanel"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <h2>Observer Nodes</h2>
+        <form class="observer-filters" id="observerFilters">
+          <select id="observerStatusFilter" aria-label="Status filter">
+            <option value="">All statuses</option>
+            <option value="fully_synced">Fully Synced</option>
+            <option value="syncing">Syncing</option>
+            <option value="mismatch">Mismatch</option>
+            <option value="offline">Offline</option>
+          </select>
+          <input id="observerCountryFilter" type="text" maxlength="2" placeholder="Country" />
+          <input id="observerVersionFilter" type="text" maxlength="32" placeholder="Version" />
+          <button class="btn ghost" type="submit">Filter</button>
+        </form>
+      </div>
+      <div class="observer-list" id="observerNodesList"></div>
+      <div class="panel-footer" id="observerPager"></div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
