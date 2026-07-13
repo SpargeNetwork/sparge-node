@@ -81,6 +81,42 @@ Important keys:
 - `node.mode` (`producer` or `observer`)
 - `node.producerUrl`
 - `chain.*`, `token.*`, `rewards.*`, `tx.*`
+- `mempool.*` for transaction pool capacity, TTL, and per-sender limits
+- `invariants.*` for runtime chain/state/storage/mempool checks and fail-safe mining pause
+
+## Mempool Monitoring
+
+Monitor `/api/status`:
+
+- `mempoolTransactionCount`
+- `mempoolBytes`
+- `mempoolMaxTransactions`
+- `mempoolMaxBytes`
+- `mempoolUtilizationPercent`
+
+Suggested thresholds:
+
+- warn at `80%`
+- critical at `95%`
+
+If utilization is consistently high, inspect traffic patterns before raising limits. Larger limits increase worst-case RAM usage. Producer restart clears the in-memory mempool, so pending transactions may need to be resubmitted.
+
+## Invariant Monitoring
+
+Monitor `/api/status`:
+
+- `healthy`
+- `chainHealthy`
+- `storageHealthy`
+- `mempoolHealthy`
+- `invariantStatus`
+- `lastFastInvariantHeight`
+- `lastFullAuditHeight`
+- `lastInvariantCheckAt`
+- `lastInvariantFailureCode`
+- `miningPausedForSafety`
+
+If `miningPausedForSafety` is `true`, keep mining stopped until the failed invariant is understood. Snapshot the current state before any manual repair.
 
 ## Release Notes
 
@@ -100,8 +136,8 @@ Release sources:
 2. Run validation suite:
    - `npm run test:stability`
    - `npm run test:recovery`
-   - `npm run test:protocol`
    - `npm run test:economics`
+   - `npm run test:invariants`
 3. Build observer installer:
    - `npm run dist:observer:win`
 4. Create/refresh release notes from `docs/RELEASE_TEMPLATE.md`.
@@ -161,22 +197,21 @@ Output:
 - log file: `scripts/out/test-stability-<timestamp>.log`
 - exit code `0` on success, `1` on any failure
 
-## Protocol Correctness Smoke Test
+## Protocol Correctness Coverage
 
-Run:
-- `npm run test:protocol`
+The previous `npm run test:protocol` script referenced `scripts/test-protocol-correctness.js`, but that file is not present in this checkout, `origin/main`, or repository history available locally.
 
-What it validates:
-- invariants endpoint passes on recent chain state
-- nonce monotonic behavior and mempool sequencing under tx burst
-- reward accounting consistency via invariants after load
-- participant active-window boundary behavior (inactive/reactivated)
-- participant bond lock/release lifecycle (register/unregister/heartbeat)
+Current related coverage:
+- `npm run test:stability` covers producer/observer continuity, sync, and mismatch handling.
+- `npm run test:recovery` covers snapshot/restore continuity.
+- `npm run test:economics` covers sybil/sponsor-cap/free-rider/holder-window scenarios and checks invariants after adversarial economics scenarios.
+- `npm run test:mempool` covers bounded mempool accounting, TTL, sender limits, duplicate handling, and removal behavior.
+- `npm run test:invariants` covers runtime chain/state/storage/mempool invariant checks and fail-safe mining pause behavior.
 
-Output:
-- PASS/FAIL lines in terminal
-- log file: `scripts/out/test-protocol-<timestamp>.log`
-- exit code `0` on success, `1` on any failure
+Still missing as a dedicated smoke suite:
+- nonce monotonic behavior and mempool sequencing under real tx burst
+- reward accounting consistency as a protocol-focused suite
+- participant active-window boundary and register/unregister/heartbeat lifecycle as one protocol correctness run
 
 ## Economics Anti-Abuse Smoke Test
 

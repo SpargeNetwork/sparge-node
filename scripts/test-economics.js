@@ -105,6 +105,13 @@ async function main() {
   cfg.rewards.treasuryAddress = sponsor.address;
   cfg.rewards.nodePoolAddress = sponsor.address;
   cfg.rewards.holderPoolAddress = sponsor.address;
+  if (!cfg.security) cfg.security = {};
+  if (!cfg.security.rateLimits) cfg.security.rateLimits = {};
+  cfg.security.rateLimits.transaction = {
+    ...(cfg.security.rateLimits.transaction || {}),
+    maxRequestsPerIp: 100,
+    maxConcurrentPerIp: 20
+  };
   fs.writeFileSync(configPath, YAML.stringify(cfg), 'utf8');
 
   let server = startProducer({
@@ -274,6 +281,9 @@ async function main() {
       'Free-rider heartbeat rejected for unregistered participant'
     );
 
+    const inv = await httpJson(baseUrl, '/api/debug/invariants');
+    assertCheck(inv.status === 200 && inv.body.ok === true, 'Invariants remain OK after economics scenarios');
+
     // Holder eligibility edge timing around window via controlled state setup + restart.
     if (server && !server.killed) server.kill('SIGTERM');
     await sleep(500);
@@ -310,9 +320,6 @@ async function main() {
     const holderB = await httpJson(baseUrl, `/api/address/${edgeNearMiss.address}`);
     assertCheck(holderA.body.avgEligible === true, 'Holder window edge: full-window balance at threshold is eligible');
     assertCheck(holderB.body.avgEligible === false, 'Holder window edge: balance added just after window start is not eligible');
-
-    const inv = await httpJson(baseUrl, '/api/debug/invariants');
-    assertCheck(inv.status === 200 && inv.body.ok === true, 'Invariants remain OK after economics scenarios');
   } finally {
     if (server && !server.killed) {
       server.kill('SIGTERM');

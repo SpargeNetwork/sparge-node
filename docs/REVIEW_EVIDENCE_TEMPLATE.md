@@ -18,9 +18,16 @@
 - Final line (`PASS: Recovery smoke test succeeded` expected):
 - Exit code:
 
-### 3) `npm run test:protocol`
+### 3) Protocol correctness smoke suite
+
+Status: MISSING unless `scripts/test-protocol-correctness.js` is restored or replaced with an equivalent suite.
 - Command output summary:
 - Final line (`RESULT: PASS` expected):
+- Exit code:
+
+### 4) `npm run test:invariants`
+- Command output summary:
+- Final line (`invariant tests passed` expected):
 - Exit code:
 
 ## Findings

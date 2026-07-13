@@ -71,12 +71,14 @@ Run from repo root:
 ```powershell
 npm run test:stability
 npm run test:recovery
-npm run test:protocol
+npm run test:economics
+npm run test:invariants
 ```
 
 Expected:
-- all commands exit with code `0`
-- each command reports final `RESULT: PASS`
+- all available commands exit with code `0`
+- each available command reports final `RESULT: PASS` or equivalent PASS output
+- protocol correctness remains a coverage gap unless a dedicated suite is restored
 
 Attach command output and log file references in `docs/REVIEW_EVIDENCE_TEMPLATE.md`.
 
@@ -92,5 +94,5 @@ Use: `docs/REVIEW_EVIDENCE_TEMPLATE.md`
 Minimum evidence:
 - reviewer identity + date + commit hash/tag
 - environment details
-- command outputs for all three smoke tests
+- command outputs for smoke and invariant tests
 - findings table (or explicit no-critical sign-off)

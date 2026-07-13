@@ -211,6 +211,14 @@ function rpcRouter(blockchain, mempool, config) {
 
     const maxNonce = mempool.getMaxNonce(feePayer);
     const expectedNonce = maxNonce === null ? ledgerNonce : maxNonce + 1n;
+    const maxFutureNonceGap = BigInt(config.mempool?.maxFutureNonceGap || 100);
+    if (BigInt(tx.nonce || '0') > ledgerNonce + maxFutureNonceGap) {
+      res.status(400).json({
+        error: 'NONCE_TOO_FAR_AHEAD',
+        message: 'Transaction nonce is too far ahead of the confirmed account nonce.'
+      });
+      return;
+    }
     if (BigInt(tx.nonce || '0') !== expectedNonce) {
       res.status(400).json({ error: `invalid nonce (expected ${expectedNonce.toString()})` });
       return;
@@ -218,14 +226,39 @@ function rpcRouter(blockchain, mempool, config) {
 
     const message = buildMessage(tx);
     const txid = createTxId(tx);
-    mempool.addTx({
-      ...tx,
-      signer: feePayer,
-      bondMicro: bondMicro.toString(),
-      id: txid,
-      txid,
-      timestamp: new Date().toISOString()
-    });
+    if (typeof mempool.hasTx === 'function' && mempool.hasTx(txid)) {
+      res.status(409).json({ error: 'MEMPOOL_DUPLICATE', message: 'Transaction is already pending.' });
+      return;
+    }
+    if (blockchain.getTxById(txid)) {
+      res.status(409).json({ error: 'MEMPOOL_DUPLICATE', message: 'Transaction is already confirmed.' });
+      return;
+    }
+
+    try {
+      mempool.addTx({
+        ...tx,
+        signer: feePayer,
+        bondMicro: bondMicro.toString(),
+        id: txid,
+        txid,
+        timestamp: new Date().toISOString()
+      });
+    } catch (err) {
+      if (err && err.code === 'MEMPOOL_FULL') {
+        res.status(503).json({ error: 'MEMPOOL_FULL', message: 'The transaction pool is currently full. Please try again later.' });
+        return;
+      }
+      if (err && err.code === 'MEMPOOL_SENDER_LIMIT') {
+        res.status(429).json({ error: 'MEMPOOL_SENDER_LIMIT', message: 'This account has too many pending transactions.' });
+        return;
+      }
+      if (err && err.code === 'MEMPOOL_DUPLICATE') {
+        res.status(409).json({ error: 'MEMPOOL_DUPLICATE', message: 'Transaction is already pending.' });
+        return;
+      }
+      throw err;
+    }
 
     res.json({ status: 'queued', txid, message });
   });

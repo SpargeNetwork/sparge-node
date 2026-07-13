@@ -22,6 +22,7 @@ const TX_FIELDS = new Set([
   'nonce',
   'publicKeyHex',
   'signatureHex',
+  'txid',
   'sponsor',
   'participant',
   'memo'
@@ -286,11 +287,14 @@ function signedTxBody(input) {
   const nonce = canonicalIntegerString(input.nonce, 'nonce', { max: Number.MAX_SAFE_INTEGER });
   const publicKeyHex = stringField(input.publicKeyHex, 'publicKeyHex', { min: 64, max: 64, pattern: HEX_64_RE, allowEmpty: false, reason: 'Expected 64 lowercase hex characters' });
   const signatureHex = stringField(input.signatureHex, 'signatureHex', { min: 128, max: 128, pattern: HEX_128_RE, allowEmpty: false, reason: 'Expected 128 lowercase hex characters' });
+  const txid = input.txid === undefined
+    ? { value: '' }
+    : stringField(input.txid, 'txid', { min: 64, max: 64, pattern: HEX_64_RE, allowEmpty: false, reason: 'Expected 64 lowercase hex characters' });
   const sponsor = address(input.sponsor, 'sponsor', { allowEmpty: true });
   const participant = address(input.participant, 'participant', { allowEmpty: true });
   const memo = optionalString(input.memo, 'memo', { min: 0, max: 128, allowEmpty: true });
 
-  for (const parsed of [chainId, from, to, amountMicro, feeMicro, nonce, publicKeyHex, signatureHex, sponsor, participant, memo]) {
+  for (const parsed of [chainId, from, to, amountMicro, feeMicro, nonce, publicKeyHex, signatureHex, txid, sponsor, participant, memo]) {
     if (parsed.detail) details.push(parsed.detail);
   }
   if (memo.value && /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(memo.value)) {
@@ -334,6 +338,7 @@ function signedTxBody(input) {
     nonce: nonce.value,
     publicKeyHex: publicKeyHex.value,
     signatureHex: signatureHex.value,
+    txid: txid.value,
     sponsor: sponsor.value,
     participant: participant.value,
     memo: memo.value || ''

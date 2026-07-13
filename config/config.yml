@@ -33,6 +33,19 @@ gas:
 
 mempool:
   sort: fee
+  maxTransactions: 10000
+  maxBytes: 52428800
+  maxTransactionsPerSender: 100
+  transactionTtlSeconds: 3600
+  maxFutureNonceGap: 100
+  minimumFeeMicro: "0"
+
+invariants:
+  enabled: true
+  fastChecksEveryBlock: true
+  fullAuditOnStartup: true
+  fullAuditIntervalBlocks: 0
+  stopMiningOnFailure: true
 
 tx:
   minFeeMicro: "1000"

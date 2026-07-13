@@ -90,6 +90,8 @@ Examples:
 Malformed API bodies, route params, and query strings are rejected with a structured `VALIDATION_ERROR` response before route logic runs. See `docs/validation.md`.
 Oversized JSON bodies are rejected with `PAYLOAD_TOO_LARGE` before schema validation. See `docs/request-size-limits.md`.
 Public API routes use endpoint-specific in-memory rate limits and return `RATE_LIMITED` with `Retry-After` when exceeded. See `docs/rate-limits.md`.
+The producer mempool is bounded by count, bytes, sender count, and TTL; pending transactions are still in-memory only. See `docs/mempool.md`.
+Runtime chain, state, storage, and mempool invariants can pause mining on impossible state. See `docs/invariants.md`.
 
 ## Notes
 

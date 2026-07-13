@@ -28,8 +28,9 @@ Tag: `vX.Y.Z-alpha`
 ### Validation Evidence
 - `npm run test:stability` -> PASS
 - `npm run test:recovery` -> PASS
-- `npm run test:protocol` -> PASS
+- Protocol correctness smoke suite -> MISSING unless restored in this release
 - `npm run test:economics` -> PASS
+- `npm run test:invariants` -> PASS
 
 ### Artifacts
 - Windows observer installer: `Sparge Observer Setup X.Y.Z.exe`

@@ -9,14 +9,17 @@ This project is pre-launch and experimental. Breaking changes are expected befor
 ### Added
 - Stability smoke suite (`npm run test:stability`) for producer/observer continuity, sync, and mismatch checks.
 - Recovery smoke suite (`npm run test:recovery`) with snapshot/restore validation.
-- Protocol correctness smoke suite (`npm run test:protocol`) for invariants, nonce sequencing, reward accounting, and participant lifecycle checks.
 - Economics anti-abuse smoke suite (`npm run test:economics`) for sybil/sponsor-cap/free-rider/holder-window scenarios.
+- Runtime invariant checks and `npm run test:invariants` coverage for chain/state/storage/mempool health and fail-safe mining pause.
 - Electron-based Windows Observer app packaging flow (`npm run dist:observer:win`).
 
 ### Changed
 - Storage backend defaults to SQLite with chain identity meta checks.
 - Observer mode is read-only and validates synced blocks from producer API.
 - Explorer split into dedicated pages for block, tx, and address views.
+
+### Known Gaps
+- Dedicated protocol correctness smoke coverage for nonce sequencing, reward accounting, and participant lifecycle checks is still missing; the previous `npm run test:protocol` script referenced a file that is not present in repository history.
 
 ### Breaking
 - Address/public key canonical format updated:

@@ -47,6 +47,8 @@ Current architecture is:
 - request validation: centralized `/api` body, param, and query schemas
 - request size limits: route-specific JSON body caps and safe oversized-request errors
 - rate limits: endpoint-specific API throttling, transaction concurrency caps, and trust proxy rules
+- bounded mempool: producer transaction pool capacity, TTL, and metrics
+- runtime invariants: chain/state/storage/mempool checks with fail-safe mining pause
 
 Observer sync is currently HTTP producer-to-observer, not full P2P consensus.
 

@@ -376,6 +376,18 @@ class SqliteStorage {
     }));
   }
 
+  checkIntegrity() {
+    try {
+      const result = this.db.pragma('integrity_check');
+      const ok = Array.isArray(result)
+        && result.length === 1
+        && String(result[0].integrity_check || '').toLowerCase() === 'ok';
+      return { ok };
+    } catch {
+      return { ok: false };
+    }
+  }
+
   putBlock(block, meta, ledger) {
     const insertBlock = this.db.prepare(`
       INSERT INTO blocks(height, hash, prevHash, prevStateRoot, stateRoot, proposer, timestamp, blockJson)

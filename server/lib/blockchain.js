@@ -4,6 +4,7 @@ const { toBaseUnits, formatTokens } = require('./units');
 const { getBalanceUnits, setBalanceUnits, setStakeUnits, getNonce, setNonce } = require('./ledger');
 const { ensureGenesis } = require('./genesis');
 const { ACTIVE_WINDOW_BLOCKS, MAX_SPONSORED_PARTICIPANTS, PARTICIPANT_BOND_MICRO } = require('./participants');
+const { calculateStateRoot, runFullInvariantAudit, runFastBlockInvariant } = require('./invariants');
 
 const MICRO = 1_000_000n;
 const PPM = 1_000_000n;
@@ -162,6 +163,84 @@ function createBlockchain(config, mempool, storage, dataDirOverride) {
     lastSyncError: null,
     lastSyncAt: null
   };
+  const invariantConfig = {
+    enabled: config.invariants?.enabled !== false,
+    fastChecksEveryBlock: config.invariants?.fastChecksEveryBlock !== false,
+    fullAuditOnStartup: config.invariants?.fullAuditOnStartup !== false,
+    fullAuditIntervalBlocks: Number(config.invariants?.fullAuditIntervalBlocks || 0),
+    stopMiningOnFailure: config.invariants?.stopMiningOnFailure !== false
+  };
+  const invariantHealth = {
+    healthy: true,
+    chainHealthy: true,
+    storageHealthy: true,
+    mempoolHealthy: true,
+    invariantStatus: 'ok',
+    lastFastInvariantHeight: null,
+    lastFullAuditHeight: null,
+    lastInvariantCheckAt: null,
+    lastInvariantFailureCode: null,
+    miningPausedForSafety: false,
+    details: []
+  };
+  let lastInvariantLogAt = 0;
+
+  function markInvariantFailure(result, source) {
+    const first = result?.issues?.[0] || null;
+    invariantHealth.healthy = false;
+    invariantHealth.chainHealthy = !result?.issues?.some((item) => ['chain', 'transactions', 'balances', 'supply', 'participants', 'state'].includes(item.category));
+    invariantHealth.storageHealthy = !result?.issues?.some((item) => item.category === 'storage');
+    invariantHealth.mempoolHealthy = !result?.issues?.some((item) => item.category === 'mempool');
+    invariantHealth.invariantStatus = 'failed';
+    invariantHealth.lastInvariantCheckAt = result?.checkedAt || new Date().toISOString();
+    invariantHealth.lastInvariantFailureCode = first?.code || 'INVARIANT_FAILURE';
+    invariantHealth.miningPausedForSafety = Boolean(invariantConfig.stopMiningOnFailure);
+    invariantHealth.details = (result?.issues || []).slice(0, 20);
+    const now = Date.now();
+    if (now - lastInvariantLogAt > 30000) {
+      console.error(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        event: 'invariant_failure',
+        source,
+        code: invariantHealth.lastInvariantFailureCode,
+        height: result?.checkedHeight ?? null,
+        category: first?.category || 'unknown',
+        protocolVersion: config.chain.protocolVersion,
+        economicsVersion: config.chain.economicsVersion,
+        miningPaused: invariantHealth.miningPausedForSafety
+      }));
+      lastInvariantLogAt = now;
+    }
+  }
+
+  function markInvariantSuccess(result, type) {
+    invariantHealth.healthy = true;
+    invariantHealth.chainHealthy = true;
+    invariantHealth.storageHealthy = true;
+    invariantHealth.mempoolHealthy = true;
+    invariantHealth.invariantStatus = 'ok';
+    invariantHealth.lastInvariantCheckAt = result?.checkedAt || new Date().toISOString();
+    invariantHealth.lastInvariantFailureCode = null;
+    invariantHealth.miningPausedForSafety = false;
+    invariantHealth.details = [];
+    if (type === 'fast') invariantHealth.lastFastInvariantHeight = result?.checkedHeight ?? invariantHealth.lastFastInvariantHeight;
+    if (type === 'full') invariantHealth.lastFullAuditHeight = result?.checkedHeight ?? invariantHealth.lastFullAuditHeight;
+  }
+
+  function runFullAudit(source = 'manual') {
+    const result = runFullInvariantAudit({
+      blocks: storage.getAllBlocks(),
+      ledger,
+      meta,
+      config,
+      genesisHash,
+      mempool,
+      storage
+    });
+    if (!result.ok) markInvariantFailure(result, source);
+    else markInvariantSuccess(result, 'full');
+    return result;
+  }
 
   function getState() {
     const blocks = storage.getAllBlocks();
@@ -191,6 +270,15 @@ function createBlockchain(config, mempool, storage, dataDirOverride) {
     const lagBlocks = nodeMode === 'observer' && producerHeight !== null
       ? Math.max(0, Number(producerHeight) - syncedHeight)
       : 0;
+    const mempoolStats = mempool && typeof mempool.getStats === 'function'
+      ? mempool.getStats()
+      : {
+        mempoolTransactionCount: 0,
+        mempoolBytes: 0,
+        mempoolMaxTransactions: 0,
+        mempoolMaxBytes: 0,
+        mempoolUtilizationPercent: '0.00'
+      };
     return {
       chainId: config.chain.chainId,
       protocolVersion: config.chain.protocolVersion,
@@ -252,16 +340,32 @@ function createBlockchain(config, mempool, storage, dataDirOverride) {
       lastSyncError: nodeMode === 'observer' ? (syncStatus.lastSyncError || null) : null,
       lastSyncAt: nodeMode === 'observer' ? (syncStatus.lastSyncAt || null) : null,
       gasTarget,
-      gasBlockLimit
+      gasBlockLimit,
+      healthy: invariantHealth.healthy,
+      chainHealthy: invariantHealth.chainHealthy,
+      storageHealthy: invariantHealth.storageHealthy,
+      mempoolHealthy: invariantHealth.mempoolHealthy,
+      invariantStatus: invariantHealth.invariantStatus,
+      lastFastInvariantHeight: invariantHealth.lastFastInvariantHeight,
+      lastFullAuditHeight: invariantHealth.lastFullAuditHeight,
+      lastInvariantCheckAt: invariantHealth.lastInvariantCheckAt,
+      lastInvariantFailureCode: invariantHealth.lastInvariantFailureCode,
+      miningPausedForSafety: invariantHealth.miningPausedForSafety,
+      ...mempoolStats
     };
   }
 
   function canMint() {
-    return true;
+    return !invariantHealth.miningPausedForSafety;
   }
 
   function mineNextBlock() {
+    if (invariantConfig.enabled && invariantHealth.miningPausedForSafety) {
+      return null;
+    }
     const latest = storage.getLatestBlock();
+    const preLedger = cloneLedgerSnapshot(ledger);
+    const preMeta = { ...meta };
     const height = latest ? latest.height + 1 : 0;
     const timestamp = new Date().toISOString();
 
@@ -353,6 +457,33 @@ function createBlockchain(config, mempool, storage, dataDirOverride) {
       payload
     };
 
+    if (invariantConfig.enabled && invariantConfig.fastChecksEveryBlock) {
+      const candidateMeta = {
+        ...meta,
+        latestHeight: block.height,
+        latestHash: block.hash,
+        baseFeeBaseUnits: nextBaseFee.toString(),
+        totalSupplyUnits: mintContext.totalSupplyUnits.toString(),
+        totalMintedUnits: mintContext.totalMintedUnits.toString()
+      };
+      const fast = runFastBlockInvariant({
+        block,
+        previousBlock: latest,
+        ledger,
+        meta: candidateMeta,
+        config,
+        genesisHash,
+        mempool
+      });
+      if (!fast.ok) {
+        ledger = preLedger;
+        meta = preMeta;
+        markInvariantFailure(fast, 'fast_block');
+        return null;
+      }
+      markInvariantSuccess(fast, 'fast');
+    }
+
     meta.latestHeight = block.height;
     meta.latestHash = block.hash;
     meta.baseFeeBaseUnits = nextBaseFee.toString();
@@ -371,6 +502,12 @@ function createBlockchain(config, mempool, storage, dataDirOverride) {
     meta.lastHolderPoolAdd = mintContext.holderPoolAdd.toString();
     meta.lastTreasuryUnits = mintContext.treasuryUnits.toString();
     storage.putBlock(block, meta, ledger);
+    if (selected.length && mempool && typeof mempool.removeByIds === 'function') {
+      mempool.removeByIds(selected.map((tx) => tx.id));
+    }
+    if (invariantConfig.enabled && invariantConfig.fullAuditIntervalBlocks > 0 && Number(block.height) % invariantConfig.fullAuditIntervalBlocks === 0) {
+      runFullAudit('interval');
+    }
     return block;
   }
 
@@ -394,27 +531,27 @@ function createBlockchain(config, mempool, storage, dataDirOverride) {
     if (!block) return { ok: false, error: 'missing block' };
     const expectedHeight = Number(meta.latestHeight || 0) + 1;
     if (Number(block.height) !== expectedHeight) {
-      return { ok: false, error: `height mismatch (expected ${expectedHeight})` };
+      return { ok: false, error: `height mismatch (expected ${expectedHeight})`, code: 'CHAIN_HEIGHT_MISMATCH', height: block?.height };
     }
     if (block.chainId !== config.chain.chainId) {
-      return { ok: false, error: 'chainId mismatch' };
+      return { ok: false, error: 'chainId mismatch', code: 'CHAIN_ID_MISMATCH', height: block.height };
     }
     if (block.genesisHash !== genesisHash) {
-      return { ok: false, error: 'genesisHash mismatch' };
+      return { ok: false, error: 'genesisHash mismatch', code: 'GENESIS_HASH_MISMATCH', height: block.height };
     }
     if (block.protocolVersion !== config.chain.protocolVersion) {
-      return { ok: false, error: 'protocolVersion mismatch' };
+      return { ok: false, error: 'protocolVersion mismatch', code: 'PROTOCOL_VERSION_MISMATCH', height: block.height };
     }
     if (block.economicsVersion !== config.chain.economicsVersion) {
-      return { ok: false, error: 'economicsVersion mismatch' };
+      return { ok: false, error: 'economicsVersion mismatch', code: 'ECONOMICS_VERSION_MISMATCH', height: block.height };
     }
     if (block.prevHash !== meta.latestHash) {
-      return { ok: false, error: 'prevHash mismatch' };
+      return { ok: false, error: 'prevHash mismatch', code: 'PREVIOUS_HASH_MISMATCH', height: block.height };
     }
 
     const currentStateRoot = calculateStateRoot(ledger);
     if (block.prevStateRoot && block.prevStateRoot !== currentStateRoot) {
-      return { ok: false, error: 'prevStateRoot mismatch' };
+      return { ok: false, error: 'prevStateRoot mismatch', code: 'STATE_ROOT_MISMATCH', height: block.height };
     }
 
     if (!block.header) {
@@ -428,7 +565,7 @@ function createBlockchain(config, mempool, storage, dataDirOverride) {
     }
     const computedHash = sha256(block.header);
     if (computedHash !== block.hash) {
-      return { ok: false, error: 'block hash mismatch' };
+      return { ok: false, error: 'block hash mismatch', code: 'BLOCK_HASH_MISMATCH', height: block.height };
     }
     if (header.height !== block.height || header.prevHash !== block.prevHash || header.prevStateRoot !== block.prevStateRoot) {
       return { ok: false, error: 'header fields mismatch' };
@@ -510,7 +647,7 @@ function createBlockchain(config, mempool, storage, dataDirOverride) {
 
     const expectedStateRoot = calculateStateRoot(tempLedger);
     if (block.stateRoot !== expectedStateRoot) {
-      return { ok: false, error: 'stateRoot mismatch' };
+      return { ok: false, error: 'stateRoot mismatch', code: 'STATE_ROOT_MISMATCH', height: block.height };
     }
 
     const prevBaseFee = BigInt(meta.baseFeeBaseUnits || '0');
@@ -548,10 +685,42 @@ function createBlockchain(config, mempool, storage, dataDirOverride) {
     tempMeta.lastHolderPoolAdd = mintContext.holderPoolAdd.toString();
     tempMeta.lastTreasuryUnits = mintContext.treasuryUnits.toString();
 
+    if (invariantConfig.enabled && invariantConfig.fastChecksEveryBlock) {
+      const fast = runFastBlockInvariant({
+        block,
+        previousBlock: storage.getLatestBlock(),
+        ledger: tempLedger,
+        meta: tempMeta,
+        config,
+        genesisHash,
+        mempool
+      });
+      if (!fast.ok) {
+        markInvariantFailure(fast, 'observer_fast_block');
+        return {
+          ok: false,
+          error: fast.errors[0] || 'invariant failure',
+          code: fast.issues[0]?.code || 'INVARIANT_FAILURE',
+          height: block.height
+        };
+      }
+      markInvariantSuccess(fast, 'fast');
+    }
+
     ledger = tempLedger;
     meta = tempMeta;
     storage.putBlock(block, meta, ledger);
+    if (invariantConfig.enabled) {
+      const audit = runFullAudit('observer_apply');
+      if (!audit.ok) {
+        return { ok: false, error: audit.errors[0] || 'invariant failure', code: audit.issues[0]?.code || 'INVARIANT_FAILURE', height: block.height };
+      }
+    }
     return { ok: true };
+  }
+
+  if (invariantConfig.enabled && invariantConfig.fullAuditOnStartup) {
+    runFullAudit('startup');
   }
 
   return {
@@ -567,130 +736,17 @@ function createBlockchain(config, mempool, storage, dataDirOverride) {
       };
     },
     checkInvariants() {
-      const errors = [];
-      const warnings = [];
-      const blocks = storage.getAllBlocks();
-      const participants = {};
-      let genesisFreeUsed = false;
-      const lastNonce = new Map();
-      const userTypes = new Set(['transfer', 'register_participant', 'unregister_participant', 'heartbeat']);
-
-      for (const block of blocks) {
-        const height = BigInt(block.height || 0);
-        const txs = getBlockTransactions(block);
-        const userTxs = txs.filter((tx) => userTypes.has(tx.type));
-        const mintUnits = BigInt(block.mintUnits || '0');
-        const participantUnits = (mintUnits * 1500n) / BPS_DENOM;
-        const nodePoolAdd = (mintUnits * 7000n) / BPS_DENOM;
-        let treasuryUnits = (mintUnits * 1000n) / BPS_DENOM;
-        const holderPoolAdd = (mintUnits * 500n) / BPS_DENOM;
-        const distributed = participantUnits + nodePoolAdd + treasuryUnits + holderPoolAdd;
-        const remainder = mintUnits - distributed;
-        treasuryUnits += remainder;
-
-        for (const tx of userTxs) {
-          if (tx.amountMicro && BigInt(tx.amountMicro) < 0n) {
-            errors.push(`height ${block.height}: negative amount`);
-          }
-          if (tx.feeMicro && BigInt(tx.feeMicro) < 0n) {
-            errors.push(`height ${block.height}: negative fee`);
-          }
-          if (tx.from && tx.nonce !== undefined && tx.nonce !== null) {
-            const nonce = BigInt(tx.nonce || '0');
-            const prev = lastNonce.get(tx.from);
-            if (prev !== undefined && nonce !== prev + 1n) {
-              errors.push(`height ${block.height}: nonce jump for ${tx.from} (got ${nonce}, expected ${prev + 1n})`);
-            }
-            lastNonce.set(tx.from, nonce);
-          }
-          if (tx.type === 'register_participant') {
-            const participant = tx.participant || '';
-            if (participant) {
-              const withinFreeWindow = genesisFreeBlocks > 0 && height < BigInt(genesisFreeBlocks);
-              const isGenesisFree = !genesisFreeUsed
-                && withinFreeWindow
-                && tx.from === genesisOperatorAddress
-                && tx.participant === tx.from;
-              const bondRecorded = String(tx.bondMicro || '0');
-              if (isGenesisFree && bondRecorded !== '0') {
-                errors.push(`height ${block.height}: genesis free registration should have bond 0`);
-              }
-              if (!isGenesisFree && bondRecorded !== String(PARTICIPANT_BOND_MICRO)) {
-                errors.push(`height ${block.height}: non-genesis registration with zero bond`);
-              }
-              participants[participant] = {
-                sponsor: tx.from,
-                bondMicro: bondRecorded,
-                registeredHeight: String(height),
-                lastSeenHeight: String(height)
-              };
-              if (isGenesisFree) genesisFreeUsed = true;
-            }
-          }
-          if (tx.type === 'unregister_participant') {
-            delete participants[tx.from];
-          }
-          if (tx.type === 'heartbeat' || tx.type === 'transfer') {
-            if (participants[tx.from]) {
-              participants[tx.from].lastSeenHeight = String(height);
-            }
-          }
-        }
-
-        const active = getActiveParticipants({ participants }, height, ACTIVE_WINDOW_BLOCKS);
-        const activeSorted = active.slice().sort((a, b) => a.localeCompare(b));
-        if (active.join('|') !== activeSorted.join('|')) {
-          errors.push(`height ${block.height}: active participants not sorted`);
-        }
-
-        const sponsorCounts = new Map();
-        for (const address of active) {
-          const sponsor = participants[address]?.sponsor || '';
-          sponsorCounts.set(sponsor, (sponsorCounts.get(sponsor) || 0) + 1);
-        }
-        for (const [sponsor, count] of sponsorCounts.entries()) {
-          if (count > MAX_SPONSORED_PARTICIPANTS) {
-            errors.push(`height ${block.height}: sponsor cap exceeded for ${sponsor} (${count})`);
-          }
-        }
-
-        const participantRewards = txs.filter((tx) => tx.type === 'participant_reward');
-        const participantSum = participantRewards.reduce((sum, tx) => sum + BigInt(tx.amountMicro || '0'), 0n);
-        const expectedShare = active.length ? participantUnits / BigInt(active.length) : 0n;
-        const expectedSum = expectedShare * BigInt(active.length);
-        const participantRemainder = participantUnits - expectedSum;
-        if (participantSum !== expectedSum) {
-          errors.push(`height ${block.height}: participant rewards sum mismatch`);
-        }
-        treasuryUnits += participantRemainder;
-
-        const treasuryTx = txs.find((tx) => tx.type === 'treasury_reward');
-        if (treasuryUnits > 0n) {
-          if (!treasuryTx) {
-            errors.push(`height ${block.height}: missing treasury reward`);
-          } else if (BigInt(treasuryTx.amountMicro || '0') !== treasuryUnits) {
-            errors.push(`height ${block.height}: treasury reward mismatch`);
-          }
-        }
-      }
-
-      for (const [address, value] of Object.entries(ledger.balances || {})) {
-        if (BigInt(value) < 0n) {
-          errors.push(`negative balance for ${address}`);
-        }
-      }
-
-      const zeroBond = Object.entries(participants).filter(([, record]) => (record?.bondMicro || '0') === '0');
-      const nonGenesisZero = zeroBond.filter(([addr]) => addr !== genesisOperatorAddress);
-      if (nonGenesisZero.length) {
-        errors.push(`zero bond participants found for non-genesis addresses: ${nonGenesisZero.map(([addr]) => addr).join(', ')}`);
-      }
-
+      const audit = runFullAudit('debug');
       return {
-        ok: errors.length === 0,
-        errors,
-        warnings
+        ok: audit.ok,
+        errors: audit.errors,
+        warnings: [],
+        issues: audit.issues,
+        status: { ...invariantHealth, details: undefined }
       };
+    },
+    getInvariantStatus() {
+      return { ...invariantHealth, details: undefined };
     },
     getBlocks,
     getBlocksFromHeight,
@@ -1217,6 +1273,7 @@ function distributeParticipants(ledger, participantUnits, treasuryAddress, heigh
 }
 
 function selectMempoolTxs(mempool, ledger, limitCount) {
+  if (typeof mempool.cleanupExpired === 'function') mempool.cleanupExpired();
   const pool = mempool.list();
   const grouped = new Map();
 
@@ -1323,9 +1380,6 @@ function selectMempoolTxs(mempool, ledger, limitCount) {
     }
   }
 
-  if (selected.length) {
-    mempool.removeByIds(selected.map((tx) => tx.id));
-  }
   return selected;
 }
 
@@ -1517,28 +1571,6 @@ function computeChainStats(blocks, decimals) {
     totalAddresses: addresses.size,
     addresses: Array.from(addresses)
   };
-}
-
-function calculateStateRoot(ledger) {
-  const balances = Object.entries(ledger.balances || {})
-    .map(([address, value]) => [address, BigInt(value)])
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([address, value]) => `${address}:${value.toString()}`);
-  const stakes = Object.entries(ledger.stakes || {})
-    .map(([address, value]) => [address, BigInt(value)])
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([address, value]) => `${address}:${value.toString()}`);
-  const participants = Object.entries(ledger.participants || {})
-    .map(([address, record]) => {
-      const sponsor = record.sponsor || '';
-      const bond = record.bondMicro || '0';
-      const registered = record.registeredHeight || '0';
-      const lastSeen = record.lastSeenHeight || '0';
-      return `${address}:${sponsor}:${bond}:${registered}:${lastSeen}`;
-    })
-    .sort((a, b) => a.localeCompare(b));
-  const canonical = `balances|${balances.join('|')}|stakes|${stakes.join('|')}|participants|${participants.join('|')}`;
-  return sha256(canonical);
 }
 
 function validateGenesis(config, genesis, genesisHash, blocks) {

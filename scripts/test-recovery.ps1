@@ -48,6 +48,20 @@ function Stop-Node($proc) {
   }
 }
 
+function Stop-PortListener([int]$port) {
+  try {
+    $pids = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
+      Select-Object -ExpandProperty OwningProcess -Unique
+    foreach ($pid in $pids) {
+      if ($pid -and $pid -ne $PID) {
+        Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+      }
+    }
+  } catch {
+    # Best-effort cleanup only; startup reachability checks will catch real conflicts.
+  }
+}
+
 function Wait-Ok([string]$url, [int]$sec = 30) {
   $end = (Get-Date).AddSeconds($sec)
   while ((Get-Date) -lt $end) {
@@ -66,7 +80,8 @@ function Status([int]$port) {
 }
 
 try {
-  Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
+  Stop-PortListener $PortA
+  Stop-PortListener $PortB
 
   $cfgRaw = Get-Content (Join-Path $repoRoot "config/config.yml") -Raw
   $cfgRaw = [Regex]::Replace($cfgRaw, 'blockTimeSeconds:\s*\d+', 'blockTimeSeconds: 2')

@@ -4,7 +4,9 @@ function mempoolRouter(mempool) {
   const router = express.Router();
 
   router.get('/', (req, res) => {
-    res.json({ count: mempool.list().length, transactions: mempool.list() });
+    const transactions = mempool.list();
+    const stats = typeof mempool.getStats === 'function' ? mempool.getStats() : { mempoolTransactionCount: transactions.length };
+    res.json({ count: transactions.length, ...stats, transactions });
   });
 
   return router;
