@@ -1,0 +1,54 @@
+{
+	admin off
+	auto_https disable_redirects
+}
+
+http://{$SPARGE_DOMAIN} {
+	redir https://{host}{uri} permanent
+}
+
+https://{$SPARGE_DOMAIN} {
+	encode zstd gzip
+
+	request_body {
+		max_size 32KB
+	}
+
+	@operatorWrite {
+		path /operator /operator/* /api/operator/* /api/mining/start /api/mining/stop /api/debug/*
+	}
+	respond @operatorWrite 404
+
+	reverse_proxy producer:3051 {
+		header_up Host {host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+		transport http {
+			dial_timeout 5s
+			response_header_timeout 15s
+		}
+	}
+
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+	}
+
+	log {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request>headers>Authorization delete
+				request>headers>Cookie delete
+				resp_headers>Set-Cookie delete
+			}
+		}
+	}
+}

@@ -8,7 +8,8 @@ const {
   Menu,
   shell,
   clipboard,
-  ipcMain
+  ipcMain,
+  Tray
 } = require('electron');
 
 let mainWindow = null;
@@ -16,6 +17,8 @@ let backendProcess = null;
 let currentProducerUrl = null;
 let backendRetryUsed = false;
 let backendReadyResolved = false;
+let tray = null;
+let isQuitting = false;
 
 function getObserverPaths() {
   const baseDir = path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'SpargeObserver');
@@ -73,6 +76,30 @@ function readObserverConfig() {
   } catch {
     return null;
   }
+}
+
+function shellSettingsPath() {
+  return path.join(getObserverPaths().baseDir, 'shell-settings.json');
+}
+
+function readShellSettings() {
+  try {
+    return JSON.parse(fs.readFileSync(shellSettingsPath(), 'utf8'));
+  } catch {
+    return { startWithWindows: false, minimizeToTray: false };
+  }
+}
+
+function writeShellSettings(settings) {
+  const paths = getObserverPaths();
+  fs.mkdirSync(paths.baseDir, { recursive: true });
+  const next = {
+    startWithWindows: settings?.startWithWindows === true,
+    minimizeToTray: settings?.minimizeToTray === true
+  };
+  fs.writeFileSync(shellSettingsPath(), JSON.stringify(next, null, 2), 'utf8');
+  app.setLoginItemSettings({ openAtLogin: next.startWithWindows });
+  return next;
 }
 
 function openFolder(targetPath) {
@@ -157,6 +184,47 @@ function createWindow() {
   });
 
   mainWindow.loadURL('data:text/html,<h3 style=\"font-family:Segoe UI;padding:16px;\">Starting Sparge Observer...</h3>');
+
+  mainWindow.on('close', (event) => {
+    const settings = readShellSettings();
+    if (!isQuitting && settings.minimizeToTray) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+  });
+}
+
+function ensureTray() {
+  if (tray) return;
+  const iconPath = path.join(__dirname, '..', 'public', 'assets', 'sparge_logo.png');
+  tray = new Tray(iconPath);
+  tray.setToolTip('Sparge Observer');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    {
+      label: 'Show Observer',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      }
+    },
+    {
+      label: 'Restart Observer',
+      click: () => restartBackend()
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      }
+    }
+  ]));
+  tray.on('click', () => {
+    if (mainWindow) mainWindow.show();
+  });
 }
 
 function createMenu() {
@@ -169,7 +237,7 @@ function createMenu() {
           click: () => openFolder(getObserverPaths().logDir)
         },
         {
-          label: 'Open Data Folder',
+          label: 'Advanced: Open Data Folder',
           click: () => openFolder(getObserverPaths().dataDir)
         },
         {
@@ -206,6 +274,7 @@ function getBackendCommand() {
 }
 
 function startBackend() {
+  backendReadyResolved = false;
   const cfg = readObserverConfig();
   currentProducerUrl = cfg?.producerUrl || null;
   const desiredPort = Number(cfg?.port || 3052);
@@ -296,6 +365,26 @@ function stopBackend() {
   backendProcess = null;
 }
 
+function restartBackend() {
+  stopBackend();
+  backendRetryUsed = false;
+  backendReadyResolved = false;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.loadURL('data:text/html,<h3 style=\"font-family:Segoe UI;padding:16px;\">Restarting Sparge Observer...</h3>');
+  }
+  setTimeout(startBackend, 500);
+}
+
+function resetLocalData(confirmPhrase) {
+  if (confirmPhrase !== 'RESET') throw new Error('Reset confirmation missing');
+  const paths = getObserverPaths();
+  stopBackend();
+  fs.rmSync(paths.dataDir, { recursive: true, force: true });
+  fs.mkdirSync(paths.dataDir, { recursive: true });
+  restartBackend();
+  return true;
+}
+
 ipcMain.handle('observer:openLogs', () => {
   openFolder(getObserverPaths().logDir);
   return true;
@@ -310,8 +399,25 @@ ipcMain.handle('observer:copyProducerUrl', () => {
   if (url) clipboard.writeText(url);
   return url;
 });
+ipcMain.handle('observer:restart', () => {
+  restartBackend();
+  return true;
+});
+ipcMain.handle('observer:stop', () => {
+  stopBackend();
+  return true;
+});
+ipcMain.handle('observer:resetLocalData', (_event, confirmPhrase) => resetLocalData(confirmPhrase));
+ipcMain.handle('observer:getShellSettings', () => readShellSettings());
+ipcMain.handle('observer:setShellSettings', (_event, settings) => {
+  const next = writeShellSettings(settings);
+  if (next.minimizeToTray) ensureTray();
+  return next;
+});
 
 app.whenReady().then(() => {
+  writeShellSettings(readShellSettings());
+  if (readShellSettings().minimizeToTray) ensureTray();
   createWindow();
   createMenu();
   startBackend();
@@ -323,5 +429,6 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  isQuitting = true;
   stopBackend();
 });

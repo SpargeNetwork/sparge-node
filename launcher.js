@@ -113,11 +113,26 @@ invariants:
   fullAuditIntervalBlocks: 0
   stopMiningOnFailure: true
 
+logging:
+  level: info
+  format: pretty
+  directory: logs
+  fileEnabled: true
+  consoleEnabled: true
+  maxFileSizeBytes: 10485760
+  maxFiles: 10
+  redactSensitiveFields: true
+  logEmptyBlocks: false
+
 tx:
   minFeeMicro: "1000"
 
 dev:
   enableAdmin: false
+
+operatorDashboard:
+  enabled: false
+  bindLocalOnly: true
 
 node:
   mode: observer
@@ -331,7 +346,7 @@ function setupInlineHtml() {
         --text: #e7f4ef;
         --muted: #9fbab2;
         --border: #1f2f2b;
-        --radius: 14px;
+        --radius: 8px;
       }
       * { box-sizing: border-box; font-family: system-ui, -apple-system, Segoe UI, sans-serif; }
       body { margin: 0; background: var(--bg); color: var(--text); }
@@ -346,15 +361,17 @@ function setupInlineHtml() {
       .check input { width: auto; margin-top: 3px; }
       .privacy-fields.hidden { display: none; }
       .hint { color: var(--muted); font-size: 12px; margin: -6px 0 14px; }
-      .btn { background: var(--spg-primary); border: none; color: #03120e; padding: 12px 16px; border-radius: 12px; font-weight: 600; cursor: pointer; }
+      .eyebrow { color: var(--spg-accent); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; margin: 0 0 6px; }
+      .btn { background: var(--spg-primary); border: none; color: #03120e; padding: 12px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; }
       .error { margin-top: 12px; color: #ff7b7b; font-size: 13px; }
     </style>
   </head>
   <body>
     <div class="wrap">
       <div class="panel">
-        <h1>Observer Setup</h1>
-        <p>Connect this observer to a producer node. Settings are stored locally.</p>
+        <div class="eyebrow">First run</div>
+        <h1>Set up Sparge Observer</h1>
+        <p>Connect this computer to a Sparge producer. Your observer syncs and validates chain data locally without producing blocks.</p>
         <form id="setup-form">
           <label>
             <span>Producer URL</span>
@@ -366,7 +383,7 @@ function setupInlineHtml() {
           </label>
           <label class="check">
             <input id="publicListingEnabled" type="checkbox" />
-            <span>Yes, show this observer publicly</span>
+            <span>Show this observer in the public node list</span>
           </label>
           <p class="hint">Your observer will still count toward the total active observer count. When disabled, it will not appear in the public observer list.</p>
           <div class="privacy-fields hidden" id="privacyFields">

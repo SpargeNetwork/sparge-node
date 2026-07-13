@@ -12,6 +12,16 @@ No financial guarantees. Not an investment. Breaking changes may happen before s
 
 Default producer URL: `http://localhost:3051`
 
+## Docker Quick Start
+
+- Build image: `docker build -t sparge-node:test .`
+- Start producer + observer: `docker compose up -d --build`
+- Check services: `docker compose ps`
+
+Docker keeps producer and observer data in separate named volumes. See `docs/docker.md`.
+
+For public HTTPS deployment, use the Caddy production Compose stack. See `docs/https-caddy.md`.
+
 ## Dev Admin Toggle (Local Testing)
 
 Admin endpoints are disabled by default (`dev.enableAdmin: false`).
@@ -92,6 +102,12 @@ Oversized JSON bodies are rejected with `PAYLOAD_TOO_LARGE` before schema valida
 Public API routes use endpoint-specific in-memory rate limits and return `RATE_LIMITED` with `Retry-After` when exceeded. See `docs/rate-limits.md`.
 The producer mempool is bounded by count, bytes, sender count, and TTL; pending transactions are still in-memory only. See `docs/mempool.md`.
 Runtime chain, state, storage, and mempool invariants can pause mining on impossible state. See `docs/invariants.md`.
+Producer and observer logs use structured events, request IDs, redaction, and rotation. See `docs/logging.md`.
+Container deployment uses one non-root image for producer and observer modes. See `docs/docker.md`.
+Public HTTPS deployment uses Caddy as the only internet-facing service. See `docs/https-caddy.md`.
+Private producer monitoring is available through the disabled-by-default Operator Dashboard. See `docs/operator-dashboard.md`.
+Production backup and restore uses versioned verified ZIP archives. See `docs/backups.md`.
+Deterministic replay rebuilds chain state from genesis in a temporary data dir and compares the reconstructed tip with canonical SQLite state. See `docs/replay.md`.
 
 ## Notes
 

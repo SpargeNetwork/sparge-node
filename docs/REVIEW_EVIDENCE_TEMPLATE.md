@@ -18,14 +18,19 @@
 - Final line (`PASS: Recovery smoke test succeeded` expected):
 - Exit code:
 
-### 3) Protocol correctness smoke suite
+### 3) `npm run test:replay`
+- Command output summary:
+- Final line (`replay tests passed` expected):
+- Exit code:
 
-Status: MISSING unless `scripts/test-protocol-correctness.js` is restored or replaced with an equivalent suite.
+### 4) Protocol correctness smoke suite
+
+Status: MISSING unless `scripts/test-protocol-correctness.js` is restored or replaced with an equivalent suite. Deterministic replay is not a formal replacement for every protocol-focused smoke scenario.
 - Command output summary:
 - Final line (`RESULT: PASS` expected):
 - Exit code:
 
-### 4) `npm run test:invariants`
+### 5) `npm run test:invariants`
 - Command output summary:
 - Final line (`invariant tests passed` expected):
 - Exit code:

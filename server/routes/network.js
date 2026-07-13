@@ -5,7 +5,7 @@ const { buildNetworkStatus, buildObserverList } = require('../lib/networkStatus'
 const { validateBody, validateQuery } = require('../lib/validation/middleware');
 const { heartbeatBody, observerListQuery } = require('../lib/validation/schemas');
 
-function networkRouter(blockchain, storage, mempool, config) {
+function networkRouter(blockchain, storage, mempool, config, logger = null) {
   const router = express.Router();
   const registry = createObserverRegistry(storage, config);
   const rateLimits = config.security?.rateLimits || {};
@@ -20,6 +20,14 @@ function networkRouter(blockchain, storage, mempool, config) {
   router.post('/heartbeat', validateBody(heartbeatBody), heartbeatNodeLimiter, (req, res) => {
     registry.registerHeartbeat(req.body, getRemoteIp(req));
     registry.cleanup();
+    const log = req.log || logger;
+    if (log) log.info('observer_heartbeat_received', {
+      operation: 'observer_heartbeat',
+      nodeIdPrefix: String(req.body.nodeId || '').slice(0, 10),
+      blockHeight: req.body.height,
+      version: req.body.version || '',
+      publicListingEnabled: req.body.publicListingEnabled === true
+    }, 'Observer heartbeat received');
     res.json({ ok: true });
   });
 

@@ -1,7 +1,7 @@
 const http = require('http');
 const https = require('https');
 
-function createObserverSync(blockchain, config) {
+function createObserverSync(blockchain, config, logger = null) {
   const producerUrl = config.node?.producerUrl || '';
   const batchSize = Number(config.node?.sync?.batchSize ?? 50);
   const intervalMs = Number(config.node?.sync?.intervalMs ?? 2000);
@@ -12,6 +12,7 @@ function createObserverSync(blockchain, config) {
   let inFlight = false;
   let lastError = null;
   let syncState = 'syncing';
+  let lastProgressLogAt = 0;
 
   function setStatus(update) {
     blockchain.setSyncStatus({
@@ -107,6 +108,11 @@ function createObserverSync(blockchain, config) {
       for (const block of blocks) {
         const result = blockchain.applyExternalBlock(block);
         if (!result.ok) {
+          if (logger) logger.error('block_validation_failed', {
+            operation: 'observer_sync',
+            blockHeight: block.height,
+            errorCode: result.code || 'BLOCK_VALIDATION_FAILED'
+          }, 'Invalid producer block rejected');
           throw new Error(result.error || 'block validation failed');
         }
         appliedHeight = block.height;
@@ -122,6 +128,19 @@ function createObserverSync(blockchain, config) {
         lagBlocks: Math.max(0, producerHeight - appliedHeight),
         lastSyncAt: new Date().toISOString()
       });
+      const lagBlocks = Math.max(0, producerHeight - appliedHeight);
+      const now = Date.now();
+      if (logger && (syncState === 'synced' || appliedHeight - localHeight >= 100 || now - lastProgressLogAt > 30000)) {
+        logger.info(syncState === 'synced' ? 'observer_sync_completed' : 'observer_sync_progress', {
+          operation: 'observer_sync',
+          startingHeight: localHeight,
+          blockHeight: appliedHeight,
+          targetHeight: producerHeight,
+          syncLag: lagBlocks,
+          blocksApplied: blocks.length
+        }, syncState === 'synced' ? 'Observer sync completed' : 'Observer sync progress');
+        lastProgressLogAt = now;
+      }
     } catch (err) {
       syncState = 'error';
       lastError = err && err.message ? err.message : String(err);
@@ -130,6 +149,11 @@ function createObserverSync(blockchain, config) {
         lastSyncError: lastError,
         lastSyncAt: new Date().toISOString()
       });
+      if (logger) logger.warn('observer_sync_failed', {
+        operation: 'observer_sync',
+        errorCode: err.code || 'OBSERVER_SYNC_FAILED',
+        error: err
+      }, 'Observer sync failed');
     } finally {
       inFlight = false;
     }
@@ -137,6 +161,12 @@ function createObserverSync(blockchain, config) {
 
   function start() {
     if (timer) return;
+    if (logger) logger.info('observer_sync_started', {
+      operation: 'observer_sync',
+      producerUrlConfigured: Boolean(producerUrl),
+      startingHeight: blockchain.getLatestHeight(),
+      batchSize: maxBatch
+    }, 'Observer sync started');
     tick();
     timer = setInterval(tick, intervalMs);
   }

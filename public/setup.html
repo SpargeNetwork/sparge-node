@@ -15,9 +15,10 @@
         </div>
       </header>
       <main class="content">
-        <section class="panel">
-          <h1>Observer Setup</h1>
-          <p class="muted">Connect this observer to a producer node. Settings are stored locally.</p>
+        <section class="panel setup-panel">
+          <p class="eyebrow">First run</p>
+          <h1>Set up Sparge Observer</h1>
+          <p class="muted">Connect this computer to a Sparge producer. Your observer will sync and validate chain data locally without producing blocks.</p>
           <form id="setup-form">
             <label class="field">
               <span>Producer URL</span>
@@ -29,7 +30,7 @@
             </label>
             <label class="field check-field">
               <input id="publicListingEnabled" type="checkbox" />
-              <span>Yes, show this observer publicly</span>
+              <span>Show this observer in the public node list</span>
             </label>
             <p class="muted">Your observer will still count toward the total active observer count. When disabled, it will not appear in the public observer list.</p>
             <div id="privacyFields" class="hidden">

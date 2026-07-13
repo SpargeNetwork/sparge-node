@@ -67,6 +67,16 @@ const observerLagBlocksEl = document.getElementById('observerLagBlocks');
 const observerProducerUrlEl = document.getElementById('observerProducerUrl');
 const observerStatePanel = document.getElementById('observerStatePanel');
 const observerLogFeed = document.getElementById('observerLogFeed');
+const observerGuidance = document.getElementById('observerGuidance');
+const observerRestartBtn = document.getElementById('observerRestartBtn');
+const observerStopBtn = document.getElementById('observerStopBtn');
+const observerResetBtn = document.getElementById('observerResetBtn');
+const observerOpenExplorerBtn = document.getElementById('observerOpenExplorerBtn');
+const observerOpenLogsBtn = document.getElementById('observerOpenLogsBtn');
+const observerCopyDiagnosticsBtn = document.getElementById('observerCopyDiagnosticsBtn');
+const observerStartWithWindows = document.getElementById('observerStartWithWindows');
+const observerMinimizeToTray = document.getElementById('observerMinimizeToTray');
+const observerShellStatus = document.getElementById('observerShellStatus');
 const devWalletPanel = document.getElementById('devWalletPanel');
 const devWalletStatus = document.getElementById('devWalletStatus');
 const createWalletBtn = document.getElementById('createWalletBtn');
@@ -147,6 +157,13 @@ function shortHash(hash) {
 function shortAddress(address) {
   if (!address) return '-';
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
+function shortMiddle(value, front = 8, back = 8) {
+  if (!value) return '-';
+  const text = String(value);
+  if (text.length <= front + back + 1) return text;
+  return `${text.slice(0, front)}…${text.slice(-back)}`;
 }
 
 function escapeHtml(value) {
@@ -348,6 +365,29 @@ function copyToClipboard(text) {
   area.remove();
 }
 
+function copyButton(value, label = 'Copy') {
+  if (!value) return '';
+  return `<button class="copy-link" type="button" data-copy="${escapeHtml(value)}" aria-label="${escapeHtml(label)}">${escapeHtml(label)}</button>`;
+}
+
+function wireCopyButtons(root = document) {
+  root.querySelectorAll('[data-copy]').forEach((btn) => {
+    if (btn.dataset.copyReady === '1') return;
+    btn.dataset.copyReady = '1';
+    btn.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const value = btn.getAttribute('data-copy');
+      copyToClipboard(value);
+      const original = btn.textContent;
+      btn.textContent = 'Copied';
+      setTimeout(() => {
+        btn.textContent = original || 'Copy';
+      }, 1200);
+    });
+  });
+}
+
 function tooltip(label, text) {
   return `${label}<span class="tooltip" title="${text}">i</span>`;
 }
@@ -470,10 +510,22 @@ function formatSecondsAgo(seconds) {
   return `${Math.floor(hours / 24)} days ago`;
 }
 
-function networkCard(label, value, sub = '') {
+function statusTone(status) {
+  const text = String(status || '').toLowerCase();
+  if (['ok', 'healthy', 'online', 'synced', 'fully_synced', 'yes'].includes(text)) return 'ok';
+  if (['warn', 'syncing', 'pending', 'warning', 'paused'].includes(text)) return 'warn';
+  if (['bad', 'offline', 'mismatch', 'unhealthy', 'failed', 'failure', 'error', 'no'].includes(text)) return 'bad';
+  return 'neutral';
+}
+
+function statusBadge(label, status = label) {
+  return `<span class="status-badge ${statusTone(status)}">${escapeHtml(label)}</span>`;
+}
+
+function networkCard(label, value, sub = '', tone = 'neutral') {
   return `
-    <div class="network-card">
-      <div class="stat-label">${label}</div>
+    <div class="network-card ${tone ? `tone-${tone}` : ''}">
+      <div class="stat-label">${escapeHtml(label)}</div>
       <div class="stat-value">${value}</div>
       ${sub ? `<div class="stat-sub">${sub}</div>` : ''}
     </div>
@@ -500,27 +552,32 @@ function renderNetworkOverview(network) {
   const lastBlock = network.lastBlockTimestamp ? formatDateTime(network.lastBlockTimestamp) : '-';
   const lastBlockRelative = network.lastBlockTimestamp ? formatRelativeTime(network.lastBlockTimestamp) : '';
   const pending = formatNumber(network.mempoolSize ?? 0);
+  const producerOnline = network.producer?.online === true;
+  const mismatch = Number(network.mismatchObserverCount ?? 0);
+  const activeObservers = Number(network.activeObserverCount ?? 0);
+  const syncedObservers = Number(network.fullySyncedObserverCount ?? 0);
   const html = [
-    networkCard('Official Producers', formatNumber(network.producerCount ?? 1), network.producer?.online ? 'Producer online' : 'Producer offline'),
-    networkCard('Active Observer Nodes', formatNumber(network.activeObserverCount ?? 0), 'Recent heartbeat, healthy status'),
-    networkCard('Fully Synced Observers', formatNumber(network.fullySyncedObserverCount ?? 0)),
-    networkCard('Syncing Observers', formatNumber(network.syncingObserverCount ?? 0)),
-    networkCard('Current Chain Height', formatNumber(network.currentHeight ?? 0)),
-    networkCard('Last Block Time', lastBlock, lastBlockRelative),
-    networkCard('Average Block Time', `${formatNumber(network.averageBlockTimeSeconds ?? 0)} sec`),
-    networkCard('Pending Transactions', pending)
+    networkCard('Network Health', producerOnline && mismatch === 0 ? statusBadge('Healthy', 'ok') : statusBadge(mismatch > 0 ? 'Mismatch' : 'Warning', mismatch > 0 ? 'mismatch' : 'warning'), producerOnline ? 'Producer online' : 'Producer offline', producerOnline && mismatch === 0 ? 'ok' : 'bad'),
+    networkCard('Chain Height', formatNumber(network.currentHeight ?? 0), 'Current producer tip', 'ok'),
+    networkCard('Latest Block', lastBlock, lastBlockRelative, 'neutral'),
+    networkCard('Average Block Time', `${formatNumber(network.averageBlockTimeSeconds ?? 0)} sec`, '', 'neutral'),
+    networkCard('Transactions Pending', pending, 'Producer mempool', Number(network.mempoolSize ?? 0) > 0 ? 'warn' : 'ok'),
+    networkCard('Active Observers', formatNumber(activeObservers), 'Recent heartbeat, healthy status', activeObservers > 0 ? 'ok' : 'warn'),
+    networkCard('Fully Synced', formatNumber(syncedObservers), 'Observers at producer tip', syncedObservers > 0 ? 'ok' : 'neutral'),
+    networkCard('Official Producers', formatNumber(network.producerCount ?? 1), producerOnline ? 'One active producer' : 'Producer unavailable', producerOnline ? 'ok' : 'bad')
   ].join('');
   if (networkOverviewPanel) networkOverviewPanel.innerHTML = html;
 }
 
 function renderNetworkHealth(network) {
   if (!networkHealthPanel || !network) return;
+  const producerOnline = network.producer?.online === true;
   networkHealthPanel.innerHTML = [
-    networkCard('Producer Online', network.producer?.online ? 'Yes' : 'No'),
-    networkCard('Active Observers', formatNumber(network.activeObserverCount ?? 0)),
-    networkCard('Fully Synced', formatNumber(network.fullySyncedObserverCount ?? 0)),
-    networkCard('Syncing', formatNumber(network.syncingObserverCount ?? 0)),
-    networkCard('Mismatch', formatNumber(network.mismatchObserverCount ?? 0)),
+    networkCard('Producer Online', statusBadge(producerOnline ? 'Online' : 'Offline', producerOnline ? 'online' : 'offline'), '', producerOnline ? 'ok' : 'bad'),
+    networkCard('Active Observers', formatNumber(network.activeObserverCount ?? 0), 'Healthy recent heartbeats', Number(network.activeObserverCount ?? 0) > 0 ? 'ok' : 'warn'),
+    networkCard('Fully Synced', formatNumber(network.fullySyncedObserverCount ?? 0), '', Number(network.fullySyncedObserverCount ?? 0) > 0 ? 'ok' : 'neutral'),
+    networkCard('Syncing', formatNumber(network.syncingObserverCount ?? 0), '', Number(network.syncingObserverCount ?? 0) > 0 ? 'warn' : 'neutral'),
+    networkCard('Mismatch', formatNumber(network.mismatchObserverCount ?? 0), 'Not counted as healthy', Number(network.mismatchObserverCount ?? 0) > 0 ? 'bad' : 'ok'),
     networkCard('Highest Height', formatNumber(network.highestObserverHeight ?? 0)),
     networkCard('Lowest Height', formatNumber(network.lowestObserverHeight ?? 0)),
     networkCard('Average Lag', `${formatNumber(network.averageObserverLag ?? 0)} blocks`)
@@ -562,18 +619,23 @@ function renderObserverNodes(data) {
   if (!observerNodesList) return;
   const observers = Array.isArray(data?.observers) ? data.observers : [];
   if (!observers.length) {
-    observerNodesList.innerHTML = '<div class="detail-empty">No observer nodes found.</div>';
+    observerNodesList.innerHTML = '<div class="empty-state"><strong>No public observers found.</strong><span>Private observers still count in aggregate network health.</span></div>';
   } else {
     observerNodesList.innerHTML = observers.map((node) => `
       <article class="observer-node-card ${escapeHtml(node.status)}">
-        <div class="observer-node-country">${escapeHtml(sharedLocationLabel(node.countryCode || ''))}</div>
-        <div class="observer-node-title">${escapeHtml(node.publicAlias || 'Observer')}</div>
-        <div><span class="observer-status ${escapeHtml(node.status)}">${observerStatusLabel(node.status)}</span></div>
+        <div class="observer-node-head">
+          <div>
+            <div class="observer-node-country">${escapeHtml(sharedLocationLabel(node.countryCode || ''))}</div>
+            <div class="observer-node-title">${escapeHtml(node.publicAlias || 'Observer')}</div>
+          </div>
+          <span class="observer-status ${escapeHtml(node.status)}">${observerStatusLabel(node.status)}</span>
+        </div>
         <div class="observer-node-meta">
-          <span>Height: <strong>${formatNumber(node.height ?? 0)}</strong></span>
-          <span>Lag: <strong>${formatNumber(node.lag ?? 0)} blocks</strong></span>
-          <span>Version: <strong>${escapeHtml(node.version || '-')}</strong></span>
-          <span>Last Seen: <strong>${formatSecondsAgo(node.secondsSinceLastSeen)}</strong></span>
+          <span><small>Status</small><strong>${observerStatusLabel(node.status)}</strong></span>
+          <span><small>Height</small><strong>${formatNumber(node.height ?? 0)}</strong></span>
+          <span><small>Lag</small><strong>${formatNumber(node.lag ?? 0)} blocks</strong></span>
+          <span><small>Version</small><strong>${escapeHtml(node.version || '-')}</strong></span>
+          <span><small>Last Seen</small><strong>${formatSecondsAgo(node.secondsSinceLastSeen)}</strong></span>
         </div>
       </article>
     `).join('');
@@ -586,7 +648,7 @@ function renderObserverNodes(data) {
   const totalPages = Math.max(1, Math.ceil(total / limit));
   observerPager.innerHTML = `
     <div class="pager">
-      <button data-observer-page="prev" ${page <= 1 ? 'disabled' : ''}>Prev</button>
+      <button data-observer-page="prev" ${page <= 1 ? 'disabled' : ''}>Previous</button>
       <span>Page ${formatNumber(page)} / ${formatNumber(totalPages)}</span>
       <button data-observer-page="next" ${page >= totalPages ? 'disabled' : ''}>Next</button>
     </div>
@@ -802,6 +864,60 @@ function observerStateRow(label, value) {
   return `<div class="observer-state-row"><span class="k">${label}</span><span class="v">${value}</span></div>`;
 }
 
+function observerStatusCard(label, value, sub = '', tone = 'neutral') {
+  return `
+    <div class="observer-status-card tone-${tone}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${value}</strong>
+      ${sub ? `<small>${sub}</small>` : ''}
+    </div>
+  `;
+}
+
+function observerPlainState(state, lagBlocks, syncedHeight) {
+  if (state?.invariantStatus && state.invariantStatus !== 'ok') {
+    return {
+      label: 'Invariant failure',
+      tone: 'bad',
+      guidance: 'The observer detected an impossible local state. Keep it stopped and reset/resync only if you trust the configured producer.'
+    };
+  }
+  if (state?.lastSyncError) {
+    const message = String(state.lastSyncError).toLowerCase();
+    if (message.includes('genesis') || message.includes('chain') || message.includes('protocol') || message.includes('economics') || message.includes('prevhash')) {
+      return {
+        label: 'Chain mismatch',
+        tone: 'bad',
+        guidance: 'This producer does not match your local chain identity. Check the producer URL before resyncing.'
+      };
+    }
+    return {
+      label: 'Producer unreachable',
+      tone: 'bad',
+      guidance: 'The observer cannot reach the producer. Check your internet connection and producer URL.'
+    };
+  }
+  if (lagBlocks > 0) {
+    return {
+      label: 'Syncing',
+      tone: 'warn',
+      guidance: `Syncing blocks from the producer. ${formatNumber(lagBlocks)} blocks remaining.`
+    };
+  }
+  if (syncedHeight > 0) {
+    return {
+      label: 'Fully synced',
+      tone: 'ok',
+      guidance: 'Observer is fully synced and validating the local chain state.'
+    };
+  }
+  return {
+    label: 'Starting',
+    tone: 'warn',
+    guidance: 'Starting local services and waiting for the first synced block.'
+  };
+}
+
 function pushObserverLog(level, message) {
   if (!observerLogFeed || !message) return;
   const ts = new Date().toLocaleTimeString('nl-NL', { hour12: false });
@@ -831,13 +947,16 @@ function renderObserverNodeDashboard(state) {
   }
   const syncClass = syncState === 'synced' ? 'synced' : syncState === 'error' ? 'error' : 'syncing';
   const producerUrl = state.producerUrl || '-';
-  const lastSyncAt = state.lastSyncAt ? new Date(state.lastSyncAt).toLocaleString() : '-';
-  const stateRootCandidate = latestBlocks?.[0]?.stateRoot || '-';
-  const dbPath = '%APPDATA%\\SpargeObserver\\data\\state.db';
+  const lastSyncAt = state.lastSyncAt ? `${formatDateTime(state.lastSyncAt)} (${formatRelativeTime(state.lastSyncAt)})` : '-';
+  const latestBlockTime = state.latestBlock?.timestamp
+    ? `${formatDateTime(state.latestBlock.timestamp)} (${formatRelativeTime(state.latestBlock.timestamp)})`
+    : '-';
+  const plain = observerPlainState(state, lagBlocks, syncedHeight);
+  const healthTone = state.invariantStatus && state.invariantStatus !== 'ok' ? 'bad' : 'ok';
 
   if (observerStatusBadgeEl) {
-    observerStatusBadgeEl.textContent = syncState.toUpperCase();
-    observerStatusBadgeEl.className = `observer-pill ${syncClass}`;
+    observerStatusBadgeEl.textContent = plain.label.toUpperCase();
+    observerStatusBadgeEl.className = `observer-pill ${plain.tone === 'bad' ? 'error' : plain.tone === 'ok' ? 'synced' : syncClass}`;
   }
   if (observerSyncedHeightEl) observerSyncedHeightEl.textContent = formatNumber(syncedHeight);
   if (observerProducerHeightEl) observerProducerHeightEl.textContent = producerHeight;
@@ -849,17 +968,20 @@ function renderObserverNodeDashboard(state) {
 
   if (observerStatePanel) {
     observerStatePanel.innerHTML = [
-      observerStateRow('Node mode', state.nodeMode || 'observer'),
-      observerStateRow('Uptime', formatObserverUptime(Date.now() - observerStartMs)),
-      observerStateRow('Current height', formatNumber(syncedHeight)),
-      observerStateRow('State root', shortHash(stateRootCandidate)),
-      observerStateRow('Database path', dbPath),
-      observerStateRow('Last sync time', lastSyncAt)
+      observerStatusCard('Observer status', statusBadge(plain.label, plain.tone), 'Local validator state', plain.tone),
+      observerStatusCard('Sync progress', `${formatNumber(syncedHeight)} / ${producerHeight}`, `${formatNumber(lagBlocks)} blocks behind`, lagBlocks > 0 ? 'warn' : 'ok'),
+      observerStatusCard('Local height', formatNumber(syncedHeight), 'Validated locally', 'neutral'),
+      observerStatusCard('Network height', producerHeight, 'Producer tip', 'neutral'),
+      observerStatusCard('Last block time', latestBlockTime, '', 'neutral'),
+      observerStatusCard('Producer connection', statusBadge(state.lastSyncError ? 'Needs attention' : 'Connected', state.lastSyncError ? 'error' : 'online'), shortenUrl(producerUrl), state.lastSyncError ? 'bad' : 'ok'),
+      observerStatusCard('Software version', escapeHtml(state.protocolVersion || '1.0.0'), `Economics ${escapeHtml(state.economicsVersion || '-')}`, 'neutral'),
+      observerStatusCard('Health checks', statusBadge(state.invariantStatus || 'ok', healthTone), state.lastInvariantFailureCode ? `Last failure: ${escapeHtml(state.lastInvariantFailureCode)}` : 'Invariants OK', healthTone)
     ].join('');
   }
+  if (observerGuidance) observerGuidance.textContent = plain.guidance;
 
   if (observerLogEntries.length === 0) {
-    pushObserverLog('warn', `Observer connected to ${producerUrl}`);
+    pushObserverLog('warn', `Observer connected to ${shortenUrl(producerUrl)}`);
   }
 
   if (observerLastSyncState !== syncState) {
@@ -878,7 +1000,7 @@ function renderObserverNodeDashboard(state) {
     observerLastHeight = syncedHeight;
   }
   if (state.lastSyncError && state.lastSyncError !== observerLastError) {
-    pushObserverLog('error', state.lastSyncError);
+    pushObserverLog('error', 'Sync needs attention. Check producer URL and chain identity.');
     observerLastError = state.lastSyncError;
   }
 }
@@ -1596,14 +1718,18 @@ async function loadAddressDetails(address, updateUrl = false) {
 
 function renderBlocks(blocks) {
   if (!blocksTable) return;
+  if (!Array.isArray(blocks) || !blocks.length) {
+    blocksTable.innerHTML = '<tr><td colspan="7"><div class="empty-state compact"><strong>No blocks yet.</strong><span>Waiting for the producer to create the first block.</span></div></td></tr>';
+    return;
+  }
   blocksTable.innerHTML = blocks.map((block) => `
     <tr data-height="${block.height}" class="${Number(block.height) === Number(selectedHeight) ? 'selected' : ''}">
-      <td>${formatNumber(block.height)}</td>
-      <td>${block.txCount ?? (block.transactions ? block.transactions.length : (block.rewardBaseUnits && block.rewardBaseUnits !== '0' ? 1 : 0))}</td>
-      <td>${new Date(block.timestamp).toLocaleString('nl-NL')}</td>
-      <td title="${block.hash}">${shortHash(block.hash)}</td>
-      <td title="${block.prevHash}">${shortHash(block.prevHash)}</td>
-      <td title="${block.stateRoot ?? ''}">${shortHash(block.stateRoot ?? '')}</td>
+      <td><a class="block-link" href="/block/${block.height}">${formatNumber(block.height)}</a></td>
+      <td><span class="table-pill">${block.txCount ?? (block.transactions ? block.transactions.length : (block.rewardBaseUnits && block.rewardBaseUnits !== '0' ? 1 : 0))}</span></td>
+      <td><span title="${escapeHtml(formatDateTime(block.timestamp))}">${formatRelativeTime(block.timestamp)}</span><small class="table-sub">${formatDateTime(block.timestamp)}</small></td>
+      <td title="${escapeHtml(block.hash)}"><span class="hash-cell">${shortMiddle(block.hash)}</span>${copyButton(block.hash)}</td>
+      <td title="${escapeHtml(block.prevHash)}"><span class="hash-cell">${shortMiddle(block.prevHash)}</span>${copyButton(block.prevHash)}</td>
+      <td title="${escapeHtml(block.stateRoot ?? '')}"><span class="hash-cell">${shortMiddle(block.stateRoot ?? '')}</span>${copyButton(block.stateRoot ?? '')}</td>
       <td>${block.rewardTokens ?? block.rewardBaseUnits}</td>
     </tr>
   `).join('');
@@ -1614,6 +1740,7 @@ function renderBlocks(blocks) {
       window.location.href = `/block/${height}`;
     });
   });
+  wireCopyButtons(blocksTable);
 }
 
 async function loadBlockDetails(height) {
@@ -1668,9 +1795,9 @@ function renderPager() {
   const nextDisabled = currentPage >= totalPages;
   const label = `${currentPage} / ${totalPages}`;
   const markup = `
-    <button ${prevDisabled ? 'disabled' : ''} data-action="prev">Vorige</button>
+    <button ${prevDisabled ? 'disabled' : ''} data-action="prev">Previous</button>
     <span>${label}</span>
-    <button ${nextDisabled ? 'disabled' : ''} data-action="next">Volgende</button>
+    <button ${nextDisabled ? 'disabled' : ''} data-action="next">Next</button>
   `;
 
   pagerTop.innerHTML = markup;
@@ -2843,6 +2970,108 @@ if (copyAddressBtn) {
     }
   });
 }
+
+function setObserverShellStatus(message) {
+  if (observerShellStatus) observerShellStatus.textContent = message || '';
+}
+
+async function runObserverShellAction(action, successMessage) {
+  if (!window.observerShell || typeof window.observerShell[action] !== 'function') {
+    setObserverShellStatus('This action is available in the desktop app.');
+    return;
+  }
+  try {
+    await window.observerShell[action]();
+    setObserverShellStatus(successMessage);
+  } catch {
+    setObserverShellStatus('Action failed. Open Diagnostics for details.');
+  }
+}
+
+function diagnosticsText() {
+  const state = latestChainState || latestState || {};
+  return [
+    'Sparge Observer diagnostics',
+    `Status: ${state.syncState || '-'}`,
+    `Local height: ${state.syncedHeight ?? state.latestHeight ?? '-'}`,
+    `Producer height: ${state.producerHeight ?? '-'}`,
+    `Lag blocks: ${state.lagBlocks ?? '-'}`,
+    `Producer: ${state.producerUrl || '-'}`,
+    `Protocol: ${state.protocolVersion || '-'}`,
+    `Economics: ${state.economicsVersion || '-'}`,
+    `Invariant status: ${state.invariantStatus || '-'}`,
+    `Last invariant failure: ${state.lastInvariantFailureCode || '-'}`,
+    `Last sync: ${state.lastSyncAt || '-'}`,
+    `Last block: ${state.latestBlock?.timestamp || '-'}`
+  ].join('\n');
+}
+
+if (observerOpenExplorerBtn) {
+  observerOpenExplorerBtn.addEventListener('click', () => {
+    window.location.href = '#observerExplorerSection';
+  });
+}
+if (observerOpenLogsBtn) {
+  observerOpenLogsBtn.addEventListener('click', () => runObserverShellAction('openLogsFolder', 'Logs opened.'));
+}
+if (observerRestartBtn) {
+  observerRestartBtn.addEventListener('click', () => runObserverShellAction('restartObserver', 'Restarting observer...'));
+}
+if (observerStopBtn) {
+  observerStopBtn.addEventListener('click', () => {
+    const ok = window.confirm('Stop the local observer service? The explorer will stop refreshing until you restart the app or observer.');
+    if (!ok) return;
+    runObserverShellAction('stopObserver', 'Observer stopped.');
+  });
+}
+if (observerResetBtn) {
+  observerResetBtn.addEventListener('click', () => {
+    const first = window.confirm('Reset local observer data and resync from the configured producer? This deletes only this observer copy, not the public chain.');
+    if (!first) return;
+    const phrase = window.prompt('Type RESET to confirm local reset and resync.');
+    if (phrase !== 'RESET') {
+      setObserverShellStatus('Reset cancelled.');
+      return;
+    }
+    if (!window.observerShell || typeof window.observerShell.resetLocalData !== 'function') {
+      setObserverShellStatus('Reset is available in the desktop app.');
+      return;
+    }
+    window.observerShell.resetLocalData('RESET')
+      .then(() => setObserverShellStatus('Local data reset. Restarting observer...'))
+      .catch(() => setObserverShellStatus('Reset failed. Open Diagnostics for details.'));
+  });
+}
+if (observerCopyDiagnosticsBtn) {
+  observerCopyDiagnosticsBtn.addEventListener('click', () => {
+    copyToClipboard(diagnosticsText());
+    setObserverShellStatus('Diagnostics copied.');
+  });
+}
+if (observerStartWithWindows || observerMinimizeToTray) {
+  const loadShellSettings = async () => {
+    if (!window.observerShell || typeof window.observerShell.getShellSettings !== 'function') return;
+    const settings = await window.observerShell.getShellSettings().catch(() => null);
+    if (!settings) return;
+    if (observerStartWithWindows) observerStartWithWindows.checked = settings.startWithWindows === true;
+    if (observerMinimizeToTray) observerMinimizeToTray.checked = settings.minimizeToTray === true;
+  };
+  const saveShellSettings = async () => {
+    if (!window.observerShell || typeof window.observerShell.setShellSettings !== 'function') {
+      setObserverShellStatus('Desktop settings are available in the desktop app.');
+      return;
+    }
+    await window.observerShell.setShellSettings({
+      startWithWindows: observerStartWithWindows?.checked === true,
+      minimizeToTray: observerMinimizeToTray?.checked === true
+    }).catch(() => null);
+    setObserverShellStatus('Advanced settings saved.');
+  };
+  observerStartWithWindows?.addEventListener('change', saveShellSettings);
+  observerMinimizeToTray?.addEventListener('change', saveShellSettings);
+  loadShellSettings();
+}
+
 document.addEventListener('click', (event) => {
   const target = event.target;
   if (!target || !target.classList || !target.classList.contains('tx-link')) return;

@@ -99,9 +99,11 @@ function normalizeRateLimitConfig(config) {
 }
 
 function rateLimitResponse(res, retryAfter) {
+  if (res.req?.operatorMetrics) res.req.operatorMetrics.recordRateLimited();
   res.setHeader('Retry-After', String(retryAfter));
   res.status(429).json({
     error: 'RATE_LIMITED',
+    requestId: res.req?.requestId,
     message: 'Too many requests. Please try again later.',
     retryAfterSeconds: retryAfter
   });
@@ -111,15 +113,17 @@ function logRateLimited(req, group, retryAfter) {
   const now = Date.now();
   if (now - lastRateLimitLogAt < 30000) return;
   lastRateLimitLogAt = now;
-  console.warn(JSON.stringify({
-    timestamp: new Date().toISOString(),
+  const log = req.log;
+  const fields = {
+    operation: 'rate_limit',
     method: req.method,
-    route: req.originalUrl || req.url,
+    route: req.path || req.url,
     group,
-    status: 429,
+    statusCode: 429,
     retryAfterSeconds: retryAfter,
-    source: req.ip ? 'client' : 'unknown'
-  }));
+    rateLimited: true
+  };
+  if (log) log.warn('rate_limit_triggered', fields, 'Rate limit triggered');
 }
 
 function createRateLimiter(options = {}) {

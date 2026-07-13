@@ -1,0 +1,70 @@
+services:
+  producer:
+    build: .
+    image: sparge-node:local
+    restart: unless-stopped
+    environment:
+      NODE_MODE: producer
+      PORT: 3051
+      DATA_DIR: /app/data
+      CONFIG_PATH: /app/config/config.yml
+      LOG_FORMAT: json
+      LOG_CONSOLE_ENABLED: "true"
+      LOG_FILE_ENABLED: "false"
+    ports:
+      - "${SPARGE_PRODUCER_PORT:-3051}:3051"
+    volumes:
+      - sparge-producer-data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "node", "scripts/docker-healthcheck.js"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  observer:
+    build: .
+    image: sparge-node:local
+    restart: unless-stopped
+    depends_on:
+      producer:
+        condition: service_healthy
+    environment:
+      NODE_MODE: observer
+      PORT: 3052
+      DATA_DIR: /app/data
+      PRODUCER_URL: http://producer:3051
+      CONFIG_PATH: /app/config/config.yml
+      LOG_FORMAT: json
+      LOG_CONSOLE_ENABLED: "true"
+      LOG_FILE_ENABLED: "false"
+    ports:
+      - "${SPARGE_OBSERVER_PORT:-3052}:3052"
+    volumes:
+      - sparge-observer-data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "node", "scripts/docker-healthcheck.js"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  sparge-producer-data:
+  sparge-observer-data:

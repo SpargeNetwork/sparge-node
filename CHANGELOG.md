@@ -7,6 +7,11 @@ This project is pre-launch and experimental. Breaking changes are expected befor
 ## [Unreleased]
 
 ### Added
+- Deterministic full-chain replay CLI (`npm run replay`) and `npm run test:replay` coverage for read-only genesis-to-tip reconstruction, final state comparison, corruption detection, and restored-backup replay.
+- Production-grade producer backup and restore CLI with versioned metadata, SHA-256 checksums, SQLite snapshotting, and restore audit verification.
+- Disabled-by-default private Operator Dashboard for loopback-only producer monitoring.
+- Caddy HTTPS production Compose setup with TLS, security headers, internal-only producer/observer ports, and reverse-proxy documentation.
+- Dockerfile and Docker Compose support for producer/observer container runs with separate persistent volumes, non-root execution, health checks, and JSON stdout logging defaults.
 - Stability smoke suite (`npm run test:stability`) for producer/observer continuity, sync, and mismatch checks.
 - Recovery smoke suite (`npm run test:recovery`) with snapshot/restore validation.
 - Economics anti-abuse smoke suite (`npm run test:economics`) for sybil/sponsor-cap/free-rider/holder-window scenarios.
@@ -19,7 +24,7 @@ This project is pre-launch and experimental. Breaking changes are expected befor
 - Explorer split into dedicated pages for block, tx, and address views.
 
 ### Known Gaps
-- Dedicated protocol correctness smoke coverage for nonce sequencing, reward accounting, and participant lifecycle checks is still missing; the previous `npm run test:protocol` script referenced a file that is not present in repository history.
+- Dedicated protocol correctness smoke coverage for signed transaction bursts and participant lifecycle scenarios is still missing; deterministic replay now covers historical reconstruction through the implemented block-apply path, but the previous `npm run test:protocol` script referenced a file that is not present in repository history.
 
 ### Breaking
 - Address/public key canonical format updated:

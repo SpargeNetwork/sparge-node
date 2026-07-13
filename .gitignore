@@ -16,6 +16,8 @@ server/data-producer/
 server/data-*-test*/
 scripts/out/
 server/data-recovery-*/
+logs/
+*.log
 *.db
 *.db-shm
 *.db-wal

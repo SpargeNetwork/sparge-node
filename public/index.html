@@ -29,9 +29,28 @@
   </header>
 
   <main>
-    <section class="info-panels">
+    <section class="network-overview explorer-priority" id="networkOverviewSection">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Live network</p>
+          <h1>Sparge Chain Explorer</h1>
+        </div>
+        <a class="nav-link" href="/network">Observer Nodes</a>
+      </div>
+      <p class="network-note">Sparge Chain currently uses one official producer. Observer nodes independently sync and validate the chain state.</p>
+      <div class="network-grid priority-grid" id="networkOverviewPanel"></div>
+    </section>
+
+    <section class="search-panel">
+      <form id="searchForm" class="search">
+        <input id="searchInput" type="text" placeholder="Search block height, transaction hash, or address" aria-label="Search block, transaction, or address" />
+        <button class="btn ghost" type="submit">Search</button>
+      </form>
+    </section>
+
+    <section class="info-panels compact-panels">
       <div class="info-panel">
-        <div class="panel-title">Status</div>
+        <div class="panel-title">Chain Status</div>
         <div class="panel-body" id="statusPanel"></div>
       </div>
       <div class="info-panel">
@@ -39,20 +58,7 @@
         <div class="panel-body" id="genesisPanel"></div>
       </div>
     </section>
-    <section class="search-panel">
-      <form id="searchForm" class="search">
-        <input id="searchInput" type="text" placeholder="Search block / tx / address" />
-        <button class="btn ghost" type="submit">Search</button>
-      </form>
-    </section>
-    <section class="network-overview" id="networkOverviewSection">
-      <div class="panel-header">
-        <h2>Network Overview</h2>
-        <a class="nav-link" href="/network">Observer Nodes</a>
-      </div>
-      <p class="network-note">Sparge Chain currently uses one official producer. Observer nodes independently sync and validate the chain state.</p>
-      <div class="network-grid" id="networkOverviewPanel"></div>
-    </section>
+
     <section class="stats" id="chainStats"></section>
 
     <section class="panel">

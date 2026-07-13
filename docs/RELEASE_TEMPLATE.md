@@ -28,7 +28,8 @@ Tag: `vX.Y.Z-alpha`
 ### Validation Evidence
 - `npm run test:stability` -> PASS
 - `npm run test:recovery` -> PASS
-- Protocol correctness smoke suite -> MISSING unless restored in this release
+- `npm run test:replay` -> PASS
+- Protocol correctness smoke suite -> MISSING unless restored in this release; replay is deterministic reconstruction coverage, not formal proof
 - `npm run test:economics` -> PASS
 - `npm run test:invariants` -> PASS
 

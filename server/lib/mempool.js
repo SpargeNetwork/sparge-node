@@ -75,7 +75,7 @@ function estimateTxBytes(tx) {
   return Buffer.byteLength(JSON.stringify(stableTxForSizing(tx)), 'utf8');
 }
 
-function createMempool(config) {
+function createMempool(config, logger = null) {
   const cfg = normalizeMempoolConfig(config);
   const sortMode = cfg.sort;
   const txById = new Map();
@@ -96,11 +96,10 @@ function createMempool(config) {
     const now = Date.now();
     if (now - lastLogAt < 30000) return;
     lastLogAt = now;
-    console.warn(JSON.stringify({
-      timestamp: new Date().toISOString(),
-      event,
-      ...fields
-    }));
+    if (logger) {
+      const level = event.includes('invariant') ? 'error' : 'warn';
+      logger[level](event, { operation: 'mempool', ...fields }, 'Mempool event');
+    }
   }
 
   function normalizeTx(tx, now) {

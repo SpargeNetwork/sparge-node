@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sparge Operator Dashboard</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="operator-dashboard-page">
+  <header class="hero">
+    <a class="brand" href="/operator" aria-label="Sparge Operator Dashboard">
+      <img src="/assets/SPRG.png" alt="" class="logo-img" />
+      <div>
+        <div class="title">Sparge Operator</div>
+        <div class="subtitle">Private producer monitoring</div>
+      </div>
+    </a>
+    <nav class="top-nav" aria-label="Operator navigation">
+      <a class="nav-link active" href="/operator">Dashboard</a>
+      <a class="nav-link" href="/">Explorer</a>
+    </nav>
+    <div class="header-actions">
+      <span class="badge dev">Internal</span>
+      <span class="status" id="operatorRefreshStatus">Loading...</span>
+    </div>
+  </header>
+
+  <main class="operator-main">
+    <section class="operator-hero">
+      <div>
+        <p class="eyebrow">Producer Operations</p>
+        <h1>Node health dashboard</h1>
+        <p class="network-note">Read-only operational view. This interface is intended for localhost, VPN, or SSH tunnel access only.</p>
+      </div>
+      <div class="operator-actions">
+        <a class="btn ghost" href="/">Open Explorer</a>
+        <button class="btn ghost" type="button" id="copyOperatorDiagnostics">Copy Diagnostics</button>
+        <button class="btn ghost" type="button" disabled title="Future placeholder">Download Diagnostics Bundle</button>
+      </div>
+    </section>
+
+    <section class="operator-alert-panel" id="operatorAlerts" aria-live="polite"></section>
+
+    <section class="operator-grid" aria-label="Operator metrics">
+      <div class="panel operator-panel">
+        <div class="panel-header"><h2>Node</h2></div>
+        <div class="operator-card-grid" id="operatorNode"></div>
+      </div>
+
+      <div class="panel operator-panel">
+        <div class="panel-header"><h2>Chain</h2></div>
+        <div class="operator-card-grid" id="operatorChain"></div>
+      </div>
+
+      <div class="panel operator-panel">
+        <div class="panel-header"><h2>Health</h2></div>
+        <div class="operator-card-grid" id="operatorHealth"></div>
+      </div>
+
+      <div class="panel operator-panel">
+        <div class="panel-header"><h2>Database</h2></div>
+        <div class="operator-card-grid" id="operatorDatabase"></div>
+      </div>
+
+      <div class="panel operator-panel">
+        <div class="panel-header"><h2>Backups</h2></div>
+        <div class="operator-card-grid" id="operatorBackups"></div>
+      </div>
+
+      <div class="panel operator-panel">
+        <div class="panel-header"><h2>Network</h2></div>
+        <div class="operator-card-grid" id="operatorNetwork"></div>
+      </div>
+
+      <div class="panel operator-panel">
+        <div class="panel-header"><h2>HTTP</h2></div>
+        <div class="operator-card-grid" id="operatorHttp"></div>
+      </div>
+
+      <div class="panel operator-panel">
+        <div class="panel-header"><h2>System</h2></div>
+        <div class="operator-card-grid" id="operatorSystem"></div>
+      </div>
+
+      <div class="panel operator-panel operator-events-panel">
+        <div class="panel-header"><h2>Recent Events</h2></div>
+        <div class="operator-events" id="operatorEvents"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/operator/operator-dashboard.js"></script>
+</body>
+</html>

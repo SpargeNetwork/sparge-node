@@ -74,17 +74,19 @@ function getRequestBodyLimits(config) {
   };
 }
 
-function payloadTooLarge(res) {
+function payloadTooLarge(req, res) {
   res.status(413).json({
     error: 'PAYLOAD_TOO_LARGE',
-    message: 'Request body exceeds the allowed size'
+    message: 'Request body exceeds the allowed size',
+    requestId: req?.requestId
   });
 }
 
-function unsupportedContentType(res) {
+function unsupportedContentType(req, res) {
   res.status(415).json({
     error: 'UNSUPPORTED_MEDIA_TYPE',
-    message: 'Content-Type must be application/json'
+    message: 'Content-Type must be application/json',
+    requestId: req?.requestId
   });
 }
 
@@ -93,15 +95,29 @@ function logOversizedRequest(req, limitBytes, statusCode) {
   if (now - lastOversizedLogAt < 30000) return;
   lastOversizedLogAt = now;
   const declaredLength = req.headers['content-length'];
-  console.warn(JSON.stringify({
-    timestamp: new Date().toISOString(),
-    route: req.originalUrl || req.url,
+  if (req.operatorMetrics) req.operatorMetrics.recordOversizedRequest();
+  if (!req.log) return;
+  req.log.warn('request_size_rejected', {
+    operation: 'request_size',
+    route: req.path || req.originalUrl || req.url,
     method: req.method,
-    status: statusCode,
+    statusCode,
+    errorCode: 'PAYLOAD_TOO_LARGE',
     limitBytes,
-    contentLength: declaredLength || null,
-    source: req.ip || req.socket?.remoteAddress || 'unknown'
-  }));
+    contentLength: declaredLength || null
+  }, 'Request body rejected by size limit');
+}
+
+function logInvalidRequestBody(req, statusCode, errorCode) {
+  if (req.operatorMetrics && errorCode === 'INVALID_JSON') req.operatorMetrics.recordValidationFailure();
+  if (!req.log) return;
+  req.log.warn('request_body_rejected', {
+    operation: 'request_size',
+    route: req.path || req.originalUrl || req.url,
+    method: req.method,
+    statusCode,
+    errorCode
+  }, 'Request body rejected');
 }
 
 function createContentLengthPrecheck(limitBytes) {
@@ -114,17 +130,23 @@ function createContentLengthPrecheck(limitBytes) {
     const raw = req.headers['content-length'];
     if (raw !== undefined) {
       if (!/^(0|[1-9][0-9]*)$/.test(String(raw))) {
-        res.status(400).json({ error: 'INVALID_CONTENT_LENGTH', message: 'Invalid Content-Length header' });
+        logInvalidRequestBody(req, 400, 'INVALID_CONTENT_LENGTH');
+        res.status(400).json({
+          error: 'INVALID_CONTENT_LENGTH',
+          message: 'Invalid Content-Length header',
+          requestId: req.requestId
+        });
         return;
       }
       const declared = Number(raw);
       if (!Number.isSafeInteger(declared)) {
-        payloadTooLarge(res);
+        logOversizedRequest(req, limitBytes, 413);
+        payloadTooLarge(req, res);
         return;
       }
       if (declared > limitBytes) {
         logOversizedRequest(req, limitBytes, 413);
-        payloadTooLarge(res);
+        payloadTooLarge(req, res);
         return;
       }
     }
@@ -139,11 +161,13 @@ function requireJsonContentType(req, res, next) {
     return;
   }
   if (!req.is('application/json')) {
-    unsupportedContentType(res);
+    logInvalidRequestBody(req, 415, 'UNSUPPORTED_MEDIA_TYPE');
+    unsupportedContentType(req, res);
     return;
   }
   if (req.headers['content-encoding'] && String(req.headers['content-encoding']).toLowerCase() !== 'identity') {
-    unsupportedContentType(res);
+    logInvalidRequestBody(req, 415, 'UNSUPPORTED_MEDIA_TYPE');
+    unsupportedContentType(req, res);
     return;
   }
   next();
@@ -169,17 +193,20 @@ function requestSizeErrorHandler(err, req, res, next) {
   }
   if (err.type === 'entity.too.large') {
     logOversizedRequest(req, err.limit || null, 413);
-    payloadTooLarge(res);
+    payloadTooLarge(req, res);
     return;
   }
   if (err.type === 'encoding.unsupported' || err.status === 415) {
-    unsupportedContentType(res);
+    logInvalidRequestBody(req, 415, 'UNSUPPORTED_MEDIA_TYPE');
+    unsupportedContentType(req, res);
     return;
   }
   if (err.type === 'entity.parse.failed') {
+    logInvalidRequestBody(req, 400, 'INVALID_JSON');
     res.status(400).json({
       error: 'INVALID_JSON',
-      message: 'Request body must be valid JSON'
+      message: 'Request body must be valid JSON',
+      requestId: req.requestId
     });
     return;
   }

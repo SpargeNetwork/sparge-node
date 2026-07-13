@@ -27,7 +27,7 @@ function postJson(url, payload, timeoutMs) {
   });
 }
 
-function createObserverHeartbeatClient(blockchain, config, dataDir) {
+function createObserverHeartbeatClient(blockchain, config, dataDir, logger = null) {
   const producerUrl = config.node?.producerUrl || '';
   const intervalMs = Math.max(10, Number(config.network?.heartbeatIntervalSeconds ?? 60)) * 1000;
   const timeoutMs = Number(config.node?.sync?.timeoutMs ?? 5000);
@@ -56,7 +56,11 @@ function createObserverHeartbeatClient(blockchain, config, dataDir) {
     } catch (err) {
       const now = Date.now();
       if (now - lastLogAt > 60000) {
-        console.error(`Observer heartbeat failed: ${err.message || err}`);
+        if (logger) logger.warn('observer_sync_failed', {
+          operation: 'observer_heartbeat',
+          errorCode: err.code || 'HEARTBEAT_FAILED',
+          error: err
+        }, 'Observer heartbeat failed');
         lastLogAt = now;
       }
     } finally {

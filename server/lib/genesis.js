@@ -42,4 +42,4 @@ function ensureGenesis(dataDir, config) {
   return { genesis: payload, genesisHash };
 }
 
-module.exports = { ensureGenesis };
+module.exports = { ensureGenesis, computeGenesisHash };

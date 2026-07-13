@@ -16,6 +16,8 @@ This policy covers:
 - RPC interfaces
 - Explorer UI
 
+Deployment hardening notes are in `docs/security.md` and `docs/https-caddy.md`.
+
 ## Out of Scope
 
 - Third-party dependencies

@@ -59,7 +59,7 @@ Full audit checks the stored chain and current state:
 - SQLite integrity check when the SQLite backend is active
 - mempool accounting consistency
 
-The audit is intentionally bounded to current runtime data. It does not yet replay every historical state transition from genesis.
+The runtime audit is intentionally bounded to current runtime data. Historical state reconstruction is handled by the separate deterministic replay command: `npm run replay`.
 
 ## Status Fields
 
@@ -106,4 +106,4 @@ Logs are throttled to avoid flooding during repeated failures.
 
 `npm run test:invariants` covers runtime invariant checks and safety pause behavior.
 
-The older `npm run test:protocol` command is still intentionally absent because `scripts/test-protocol-correctness.js` is not present in this checkout or local repository history. Dedicated historical replay/protocol correctness coverage remains a separate gap.
+`npm run test:replay` covers deterministic full-chain replay from genesis through the implemented production block-apply path. The older `npm run test:protocol` command remains absent because `scripts/test-protocol-correctness.js` is not present in this checkout or local repository history; replay reduces the historical reconstruction gap but is not a formal protocol proof or external audit.

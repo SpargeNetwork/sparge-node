@@ -49,6 +49,12 @@ Current architecture is:
 - rate limits: endpoint-specific API throttling, transaction concurrency caps, and trust proxy rules
 - bounded mempool: producer transaction pool capacity, TTL, and metrics
 - runtime invariants: chain/state/storage/mempool checks with fail-safe mining pause
+- structured logging: request IDs, event names, redaction, file rotation, and operator diagnostics
+- Docker: one non-root image for producer and observer modes with separate persistent volumes
+- HTTPS/Caddy: public reverse proxy with TLS, security headers, and internal-only node ports
+- Operator dashboard: disabled-by-default, loopback-only private producer monitoring
+- Backups: versioned producer backup archives with metadata, checksums, restore verification, and startup audit
+- Deterministic replay: read-only full-chain state reconstruction from genesis to a pinned tip
 
 Observer sync is currently HTTP producer-to-observer, not full P2P consensus.
 

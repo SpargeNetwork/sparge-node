@@ -18,8 +18,24 @@ function validationErrorHandler(err, req, res, next) {
     return;
   }
 
+  if (req?.log) {
+    req.log.warn('validation_failed', {
+      operation: 'request_validation',
+      errorCode: 'VALIDATION_ERROR',
+      method: req.method,
+      route: req.path || req.url,
+      statusCode: 400,
+      details: err.details.map((detail) => ({
+        field: detail.field || 'request',
+        reason: detail.reason || 'Invalid value'
+      }))
+    }, 'Request validation failed');
+  }
+  if (req?.operatorMetrics) req.operatorMetrics.recordValidationFailure();
+
   res.status(400).json({
     error: 'VALIDATION_ERROR',
+    requestId: req.requestId,
     message: err.message || 'Request validation failed',
     details: err.details.map((detail) => ({
       field: detail.field || 'request',

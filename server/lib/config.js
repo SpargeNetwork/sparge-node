@@ -4,6 +4,7 @@ const YAML = require('yaml');
 const { normalizeSecurityConfig } = require('./requestSize');
 const { normalizeRateLimitConfig } = require('./httpSecurity');
 const { normalizeMempoolConfig } = require('./mempool');
+const { normalizeLoggingConfig } = require('./logger');
 
 const defaultConfigPath = path.join(__dirname, '..', '..', 'config', 'config.yml');
 const configPath = process.env.CONFIG_PATH || defaultConfigPath;
@@ -14,6 +15,18 @@ function parseEnvBool(value) {
   if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
   if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
   return null;
+}
+
+function parseTrustProxyEnv(value) {
+  if (typeof value !== 'string' || value.trim() === '') return null;
+  const normalized = value.trim().toLowerCase();
+  if (/^(0|[1-9][0-9]*)$/.test(normalized)) {
+    const parsed = Number(normalized);
+    if (Number.isSafeInteger(parsed)) return parsed;
+  }
+  if (['true', 'yes', 'on'].includes(normalized)) return true;
+  if (['false', 'no', 'off'].includes(normalized)) return false;
+  return value.trim();
 }
 
 function parseBoolConfig(value, field, defaultValue) {
@@ -43,6 +56,18 @@ function normalizeInvariantConfig(config) {
   return src;
 }
 
+function normalizeOperatorDashboardConfig(config) {
+  if (!config.operatorDashboard) config.operatorDashboard = {};
+  const src = config.operatorDashboard;
+  src.enabled = parseBoolConfig(src.enabled, 'operatorDashboard.enabled', false);
+  src.bindLocalOnly = parseBoolConfig(src.bindLocalOnly, 'operatorDashboard.bindLocalOnly', true);
+  const enabledOverride = parseEnvBool(process.env.OPERATOR_DASHBOARD_ENABLED);
+  if (enabledOverride !== null) src.enabled = enabledOverride;
+  const localOnlyOverride = parseEnvBool(process.env.OPERATOR_DASHBOARD_LOCAL_ONLY);
+  if (localOnlyOverride !== null) src.bindLocalOnly = localOnlyOverride;
+  return src;
+}
+
 function loadConfig() {
   const raw = fs.readFileSync(configPath, 'utf8');
   const parsed = YAML.parse(raw);
@@ -68,9 +93,15 @@ function loadConfig() {
   normalizeRateLimitConfig(parsed);
   normalizeMempoolConfig(parsed);
   normalizeInvariantConfig(parsed);
+  normalizeOperatorDashboardConfig(parsed);
+  normalizeLoggingConfig(parsed);
   const enableAdminOverride = parseEnvBool(process.env.DEV_ENABLE_ADMIN);
   if (enableAdminOverride !== null) {
     parsed.dev.enableAdmin = enableAdminOverride;
+  }
+  const trustProxyOverride = parseTrustProxyEnv(process.env.SECURITY_TRUST_PROXY);
+  if (trustProxyOverride !== null) {
+    parsed.security.trustProxy = trustProxyOverride;
   }
 
   return parsed;

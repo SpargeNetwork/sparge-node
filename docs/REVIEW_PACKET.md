@@ -73,12 +73,13 @@ npm run test:stability
 npm run test:recovery
 npm run test:economics
 npm run test:invariants
+npm run test:replay
 ```
 
 Expected:
 - all available commands exit with code `0`
 - each available command reports final `RESULT: PASS` or equivalent PASS output
-- protocol correctness remains a coverage gap unless a dedicated suite is restored
+- deterministic replay should pass; the old `npm run test:protocol` command remains absent unless a dedicated protocol smoke suite is restored
 
 Attach command output and log file references in `docs/REVIEW_EVIDENCE_TEMPLATE.md`.
 
@@ -94,5 +95,5 @@ Use: `docs/REVIEW_EVIDENCE_TEMPLATE.md`
 Minimum evidence:
 - reviewer identity + date + commit hash/tag
 - environment details
-- command outputs for smoke and invariant tests
+- command outputs for smoke, invariant, and replay tests
 - findings table (or explicit no-critical sign-off)

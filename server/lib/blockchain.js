@@ -63,7 +63,7 @@ function createGenesisBlock(config, genesisHash, genesis) {
   };
 }
 
-function createBlockchain(config, mempool, storage, dataDirOverride) {
+function createBlockchain(config, mempool, storage, dataDirOverride, logger = null) {
   const dataDir = dataDirOverride || path.join(__dirname, '..', 'data');
   const { genesis, genesisHash } = ensureGenesis(dataDir, config);
   const genesisOperatorAddress = genesis.genesisOperatorAddress || config.mining?.genesisOperatorAddress || config.mining?.proposerAddress || '';
@@ -198,17 +198,19 @@ function createBlockchain(config, mempool, storage, dataDirOverride) {
     invariantHealth.details = (result?.issues || []).slice(0, 20);
     const now = Date.now();
     if (now - lastInvariantLogAt > 30000) {
-      console.error(JSON.stringify({
-        timestamp: new Date().toISOString(),
-        event: 'invariant_failure',
+      if (logger) logger.error('invariant_check_failed', {
+        operation: 'invariant_check',
         source,
-        code: invariantHealth.lastInvariantFailureCode,
-        height: result?.checkedHeight ?? null,
+        errorCode: invariantHealth.lastInvariantFailureCode,
+        blockHeight: result?.checkedHeight ?? null,
         category: first?.category || 'unknown',
         protocolVersion: config.chain.protocolVersion,
         economicsVersion: config.chain.economicsVersion,
-        miningPaused: invariantHealth.miningPausedForSafety
-      }));
+        miningPaused: invariantHealth.miningPausedForSafety,
+        chainHealthy: invariantHealth.chainHealthy,
+        storageHealthy: invariantHealth.storageHealthy,
+        mempoolHealthy: invariantHealth.mempoolHealthy
+      }, 'Invariant check failed');
       lastInvariantLogAt = now;
     }
   }
@@ -225,6 +227,12 @@ function createBlockchain(config, mempool, storage, dataDirOverride) {
     invariantHealth.details = [];
     if (type === 'fast') invariantHealth.lastFastInvariantHeight = result?.checkedHeight ?? invariantHealth.lastFastInvariantHeight;
     if (type === 'full') invariantHealth.lastFullAuditHeight = result?.checkedHeight ?? invariantHealth.lastFullAuditHeight;
+    if (logger && type === 'full') {
+      logger.debug('invariant_check_passed', {
+        operation: 'invariant_check',
+        blockHeight: result?.checkedHeight ?? null
+      }, 'Invariant check passed');
+    }
   }
 
   function runFullAudit(source = 'manual') {
@@ -360,7 +368,12 @@ function createBlockchain(config, mempool, storage, dataDirOverride) {
   }
 
   function mineNextBlock() {
+    const startedAt = Date.now();
     if (invariantConfig.enabled && invariantHealth.miningPausedForSafety) {
+      if (logger) logger.warn('producer_mining_paused', {
+        operation: 'block_production',
+        errorCode: invariantHealth.lastInvariantFailureCode
+      }, 'Mining paused for safety');
       return null;
     }
     const latest = storage.getLatestBlock();
@@ -508,6 +521,20 @@ function createBlockchain(config, mempool, storage, dataDirOverride) {
     if (invariantConfig.enabled && invariantConfig.fullAuditIntervalBlocks > 0 && Number(block.height) % invariantConfig.fullAuditIntervalBlocks === 0) {
       runFullAudit('interval');
     }
+    if (logger) {
+      const mempoolStats = mempool && typeof mempool.getStats === 'function' ? mempool.getStats() : {};
+      const level = block.txCount > 0 || config.logging?.logEmptyBlocks === true ? 'info' : 'debug';
+      logger[level]('block_mined', {
+        operation: 'block_production',
+        blockHeight: block.height,
+        blockHashPrefix: block.hash.slice(0, 12),
+        txCount: block.txCount,
+        mempoolRemaining: mempoolStats.mempoolTransactionCount ?? 0,
+        durationMs: Date.now() - startedAt,
+        stateRootPrefix: String(block.stateRoot || '').slice(0, 12),
+        invariantStatus: invariantHealth.invariantStatus
+      }, 'Block mined');
+    }
     return block;
   }
 
@@ -531,6 +558,7 @@ function createBlockchain(config, mempool, storage, dataDirOverride) {
     if (!block) return { ok: false, error: 'missing block' };
     const expectedHeight = Number(meta.latestHeight || 0) + 1;
     if (Number(block.height) !== expectedHeight) {
+      if (logger) logger.error('block_validation_failed', { operation: 'observer_sync', blockHeight: block?.height, errorCode: 'CHAIN_HEIGHT_MISMATCH' }, 'External block validation failed');
       return { ok: false, error: `height mismatch (expected ${expectedHeight})`, code: 'CHAIN_HEIGHT_MISMATCH', height: block?.height };
     }
     if (block.chainId !== config.chain.chainId) {
