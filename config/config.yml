@@ -210,11 +210,11 @@ network:
 # Enable only after a compatible installer and metadata are published through
 # the official SpargeNetwork/sparge-node GitHub Releases repository.
 observerDownloads:
-  enabled: false
+  enabled: true
   version: "0.1.1-alpha.0"
   releaseDate: "2026-07-14"
   windowsInstaller:
-    url: ""
-    fileName: "Sparge Observer Setup 0.1.1-alpha.0.exe"
+    url: "https://github.com/SpargeNetwork/sparge-node/releases/download/v0.1.1-alpha.0/Sparge.Observer.Setup.0.1.1-alpha.0.exe"
+    fileName: "Sparge.Observer.Setup.0.1.1-alpha.0.exe"
     fileSizeBytes: 145446467
     checksumSha256: "32f81a43d5084bf702e2ac7ba4e8a13b803a882e4f6ee713db3bf2c117baf995"
