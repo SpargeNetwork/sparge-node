@@ -43,6 +43,7 @@ function buildNetworkStatus(blockchain, storage, mempool, config, now = Date.now
     status: observerStatus(observer, producerHeight, producerHash, offlineAfterMs, now)
   }));
   const active = statuses.filter((item) => item.status !== 'offline' && item.status !== 'mismatch');
+  const publicActive = active.filter((item) => item.observer.publicListingEnabled === true || item.observer.publicListingEnabled === 1);
   const heights = statuses.map((item) => Number(item.observer.height || 0)).filter((height) => Number.isFinite(height));
   const lags = active.map((item) => Math.max(0, producerHeight - Number(item.observer.height || 0)));
   const blocks = storage.getAllBlocks ? storage.getAllBlocks() : [];
@@ -58,6 +59,7 @@ function buildNetworkStatus(blockchain, storage, mempool, config, now = Date.now
     },
     producerCount: 1,
     activeObserverCount: active.length,
+    publicActiveObserverCount: publicActive.length,
     fullySyncedObserverCount: statuses.filter((item) => item.status === 'fully_synced').length,
     syncingObserverCount: statuses.filter((item) => item.status === 'syncing').length,
     mismatchObserverCount: statuses.filter((item) => item.status === 'mismatch').length,

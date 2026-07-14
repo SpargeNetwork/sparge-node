@@ -4,7 +4,8 @@ const DEFAULT_LIMITS = {
   maxJsonBodyBytes: 32768,
   maxTransactionBodyBytes: 16384,
   maxHeartbeatBodyBytes: 4096,
-  maxObserverSettingsBodyBytes: 4096
+  maxObserverSettingsBodyBytes: 4096,
+  maxCommunityBodyBytes: 8192
 };
 
 const MIN_LIMIT_BYTES = 512;
@@ -45,6 +46,7 @@ function normalizeSecurityConfig(config) {
   applyEnvOverride(security, 'maxTransactionBodyBytes', 'MAX_TRANSACTION_BODY_BYTES');
   applyEnvOverride(security, 'maxHeartbeatBodyBytes', 'MAX_HEARTBEAT_BODY_BYTES');
   applyEnvOverride(security, 'maxObserverSettingsBodyBytes', 'MAX_OBSERVER_SETTINGS_BODY_BYTES');
+  applyEnvOverride(security, 'maxCommunityBodyBytes', 'MAX_COMMUNITY_BODY_BYTES');
 
   for (const [key, defaultValue] of Object.entries(DEFAULT_LIMITS)) {
     if (security[key] === undefined) security[key] = defaultValue;
@@ -60,6 +62,9 @@ function normalizeSecurityConfig(config) {
   if (security.maxObserverSettingsBodyBytes > security.maxJsonBodyBytes) {
     throw new Error('security.maxObserverSettingsBodyBytes must be <= security.maxJsonBodyBytes');
   }
+  if (security.maxCommunityBodyBytes > security.maxJsonBodyBytes) {
+    throw new Error('security.maxCommunityBodyBytes must be <= security.maxJsonBodyBytes');
+  }
 
   return security;
 }
@@ -70,7 +75,8 @@ function getRequestBodyLimits(config) {
     json: security.maxJsonBodyBytes,
     transaction: security.maxTransactionBodyBytes,
     heartbeat: security.maxHeartbeatBodyBytes,
-    observerSettings: security.maxObserverSettingsBodyBytes
+    observerSettings: security.maxObserverSettingsBodyBytes,
+    community: security.maxCommunityBodyBytes
   };
 }
 

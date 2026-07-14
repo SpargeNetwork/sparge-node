@@ -61,6 +61,8 @@ function validationResponse(error) {
   expectValid(addressParams, { addr: address }, 'valid address param passes');
   expectInvalid(addressParams, { addr: ' spg_bad ' }, 'addr', 'malformed address fails');
   expectInvalid(txidParams, { txid: 'A'.repeat(64) }, 'txid', 'uppercase tx hash fails');
+  expectInvalid(txidParams, { txid: 'a'.repeat(63) }, 'txid', 'short transaction hash fails');
+  expectInvalid(txidParams, { txid: 'a'.repeat(65) }, 'txid', 'long transaction hash fails');
 
   assert.deepStrictEqual(runValidation(blocksQuery, {}), { page: 1, limit: 10 }, 'block pagination defaults');
   assert.deepStrictEqual(runValidation(blocksQuery, { fromHeight: '0', limit: '200' }), { fromHeight: 0, limit: 200 }, 'sync query max passes');

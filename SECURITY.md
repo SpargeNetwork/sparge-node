@@ -16,7 +16,7 @@ This policy covers:
 - RPC interfaces
 - Explorer UI
 
-Deployment hardening notes are in `docs/security.md` and `docs/https-caddy.md`.
+Deployment hardening is documented in `docs/security.md`; private producer procedures are consolidated in `docs/operator-guide.md`.
 
 ## Out of Scope
 

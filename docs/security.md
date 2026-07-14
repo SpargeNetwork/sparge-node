@@ -1,34 +1,63 @@
-# Security Notes
+# Security
 
-Sparge is pre-launch experimental software. Treat public deployments as public-alpha infrastructure.
+Sparge is Public Alpha software. This page focuses on the security decisions users, Participants, observer operators, and application builders need to make.
 
-## Public HTTPS Deployment
+## Protect your wallet
 
-Use the Caddy production Compose setup for internet-facing explorer/API deployments:
+- Use only the verified Sparge Explorer URL.
+- Back up a new wallet before receiving funds.
+- Keep wallet exports and private keys secret.
+- Never send private material to support, a Sponsor, or an observer operator.
+- Verify the complete destination address, amount, fee, and selected wallet before signing.
+- Treat unexpected wallet-import requests as suspicious.
 
-- Caddy is the only public service on ports `80` and `443`.
-- Producer and observer application ports stay on the internal Docker network.
-- Express uses `SECURITY_TRUST_PROXY=1` only for the Caddy deployment.
-- Caddy overwrites forwarding headers before proxying to the producer.
-- Caddy blocks operator write/debug routes before they reach Express.
-- The private Operator Dashboard is disabled by default and blocked by Caddy in production.
+Anyone with the private key can control the wallet. Sparge cannot reverse a signed transfer or recover a lost key.
 
-See `docs/https-caddy.md`.
+## Understand browser storage
 
-## Operator Controls
+Browser wallets store keys locally. Clearing site data, replacing a browser profile, device loss, malware, or disk failure can remove access. A producer database backup does not contain or recover user wallet keys.
 
-Mining start/stop endpoints are disabled by default and require local access when enabled. Do not expose operator controls directly to the internet.
+Keep a protected wallet export outside the browser. Do not store an unencrypted export in cloud sharing, public source control, chat, screenshots, or issue attachments.
 
-## CORS
+## Verify before trusting
 
-Production should use same-origin explorer/API traffic where possible. If cross-origin access is required, allow exact origins only. Do not use wildcard CORS for write endpoints.
+Public Alpha may have downtime, bugs, migrations, or explicitly announced resets. Check network health and transaction confirmation in the Explorer. A Pending or queued transaction is not final.
 
-## Request Limits
+Builders should verify chain ID, genesis hash, protocol version, and economics version before signing or submitting transactions.
 
-Caddy applies a `32 KB` global request body cap in production. Application-level request-size limits remain authoritative and route-specific.
+## Participation risks
 
-## Replay and Recovery
+Sponsorship does not give a Sponsor control over a Participant, but it locks the Sponsor Bond. Only the Participant can currently unregister. If the Participant loses its private key, the bond may remain locked indefinitely because Sponsor reclaim is unavailable.
 
-Deterministic replay is CLI-only and read-only against the source `DATA_DIR`. It is not exposed through public HTTP routes and must not be wired to Caddy or the public explorer.
+Reward Maturity and displayed estimates are protocol state, not guaranteed income or value. Participation does not establish a legal identity or prove that separate wallets belong to separate people.
 
-For public-alpha recovery, prefer backup -> verify -> restore into a temporary directory -> replay. Do not restore over active producer data unless the producer is stopped and the operator explicitly accepts the destructive `--force` behavior.
+## Observer privacy
+
+Observer public listing is opt-in. Aggregate network counts can include private observers. Public listings omit raw IP addresses, hostnames, usernames, internal node IDs, machine metadata, and latest block hashes.
+
+Running any internet-connected service still exposes network information to infrastructure providers and the upstream producer. Use an appropriate network and host security model.
+
+## Discord linking
+
+Discord OAuth and wallet ownership proof are separate steps. Verify the chain, domain, Discord account, and complete wallet address in the displayed challenge before signing. Linking costs no SPRG and never requires a blockchain transaction or private-key upload.
+
+Community profiles are private by default. Discord names, badges, status, wallet verification, and balances remain hidden until separately enabled.
+
+## API safety for builders
+
+- Never collect or transmit private keys.
+- Preserve canonical signed fields exactly.
+- Use integer strings for protocol amounts.
+- Keep complete transaction IDs in routes and requests.
+- Respect pagination, request limits, `Retry-After`, and temporary errors.
+- Avoid logging complete signed requests, signatures, memos, or sensitive user metadata.
+
+## Network limitations
+
+The current network has one official producer. Observers independently validate state, but they do not provide decentralized producer liveness, censorship resistance, fork choice, or finality.
+
+Sparge is not represented as formally verified or independently audited. Do not treat Public Alpha testing as proof of economic or security safety.
+
+## Report a vulnerability
+
+Follow the repository [Security Policy](../SECURITY.md) and report vulnerabilities privately. Do not include private keys, live exploit secrets, complete signatures, or sensitive production data in a public issue.

@@ -7,27 +7,17 @@
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
   <link rel="stylesheet" href="/styles.css" />
+  <script src="/site-shell.js" defer></script>
 </head>
 <body>
-  <header class="hero">
-    <a class="brand" href="/">
-      <img src="/assets/sparge_logo.png" alt="Sparge logo" class="logo-img" />
-      <div class="title">Sparge</div>
-    </a>
-    <nav class="top-nav">
-      <a href="/" class="nav-link active">Explorer</a>
-      <a href="/wallet" class="nav-link">Wallet</a>
-      <a href="https://spargenetwork.github.io/sparge-docs/" class="nav-link" target="_blank" rel="noreferrer">Docs</a>
-    </nav>
-    <div class="header-actions"></div>
-  </header>
+  <header class="site-header" data-site-header data-active-nav="explorer"></header>
 
-  <main>
+  <main class="page-container">
     <section class="panel" id="addressPage">
       <div class="panel-header">
         <div>
           <a class="back-link" href="/">Back to Explorer</a>
-          <h2>Address</h2>
+          <h1 class="page-title">Address</h1>
         </div>
       </div>
 
@@ -41,6 +31,11 @@
       <div class="wallet-card" id="addressParticipationCard">
         <div class="card-title">Participation</div>
         <div class="details-grid" id="addressParticipation"></div>
+      </div>
+
+      <div class="wallet-card hidden" id="addressCommunityCard">
+        <div class="card-title">Verified Community Profile</div>
+        <div class="details-grid" id="addressCommunityProfile"></div>
       </div>
 
       <div class="wallet-card">
@@ -68,6 +63,8 @@
     </section>
   </main>
 
+  <script src="/explorer-tx.js"></script>
+  <script src="/participant-ui.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

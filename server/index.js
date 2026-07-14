@@ -1,5 +1,6 @@
 ﻿const path = require('path');
 const express = require('express');
+const crypto = require('crypto');
 const { loadConfig } = require('./lib/config');
 const { createBlockchain } = require('./lib/blockchain');
 const { createMiner } = require('./lib/miner');
@@ -14,11 +15,15 @@ const { debugRouter } = require('./routes/debug');
 const { networkRouter } = require('./routes/network');
 const { observerSettingsRouter } = require('./routes/observerSettings');
 const { operatorRouter } = require('./routes/operator');
+const { communityRouter } = require('./routes/community');
+const { releasesRouter } = require('./routes/releases');
+const { createCommunityIdentity } = require('./community');
 const { createCorsMiddleware, createRateLimiter, createConcurrencyLimiter } = require('./lib/httpSecurity');
 const { createObserverHeartbeatClient } = require('./lib/observerHeartbeatClient');
 const { validationErrorHandler } = require('./lib/validation/errors');
 const { createLogger, createRequestIdMiddleware, createHttpRequestLogger } = require('./lib/logger');
 const { createOperatorMetrics } = require('./lib/operatorMetrics');
+const { getSoftwareVersion } = require('./lib/softwareVersion');
 const {
   getRequestBodyLimits,
   createContentLengthPrecheck,
@@ -38,7 +43,7 @@ const operatorMetrics = createOperatorMetrics();
 const logger = createLogger(config, {
   mode: nodeMode,
   chainId: config.chain?.chainId,
-  softwareVersion: config.chain?.protocolVersion || '1.0.0'
+  softwareVersion: getSoftwareVersion(config)
 }, { cwd: dataDir, eventSink: operatorMetrics.recordLogEvent });
 logger.info('config_loaded', {
   operation: 'config_load',
@@ -52,6 +57,15 @@ const blockchain = createBlockchain(config, mempool, storage, dataDir, logger.ch
 const miner = nodeMode === 'producer' ? createMiner(blockchain, config, logger.child({ component: 'miner' })) : null;
 const observerSync = nodeMode === 'observer' ? createObserverSync(blockchain, config, logger.child({ component: 'observer_sync' })) : null;
 const observerHeartbeat = nodeMode === 'observer' ? createObserverHeartbeatClient(blockchain, config, dataDir, logger.child({ component: 'observer_heartbeat' })) : null;
+const communityRuntimeConfig = nodeMode === 'producer'
+  ? config
+  : { ...config, communityIdentity: { ...config.communityIdentity, enabled: false } };
+const communityIdentity = createCommunityIdentity({
+  config: communityRuntimeConfig,
+  blockchain,
+  dataDir,
+  logger: logger.child({ component: 'community_identity' })
+});
 
 const bodyLimits = getRequestBodyLimits(config);
 const rateLimits = config.security?.rateLimits || {};
@@ -59,12 +73,13 @@ const rateEnabled = rateLimits.enabled !== false;
 const ipKey = (req) => req.ip || req.socket?.remoteAddress || 'unknown';
 const skipPostTx = (req) => req.method !== 'POST' || req.path !== '/';
 const skipNotPost = (req) => req.method !== 'POST';
+const communityKey = (req) => crypto.createHash('sha256').update(`${ipKey(req)}|${req.headers.cookie || ''}`).digest('hex');
 app.use('/api', createCorsMiddleware(config));
 app.use('/api', operatorMetrics.middleware);
 app.use('/api', createRequestIdMiddleware(logger));
 app.use('/api', createHttpRequestLogger(logger));
 app.use('/api', createRateLimiter({ enabled: rateEnabled, ...rateLimits.global, keyFn: ipKey, group: 'global' }));
-app.use(['/api/status', '/api/genesis', '/api/network/status', '/api/mempool'], createRateLimiter({ enabled: rateEnabled, ...rateLimits.publicRead, keyFn: ipKey, group: 'publicRead' }));
+app.use(['/api/status', '/api/genesis', '/api/network/status', '/api/mempool', '/api/metrics/transactions', '/api/releases'], createRateLimiter({ enabled: rateEnabled, ...rateLimits.publicRead, keyFn: ipKey, group: 'publicRead' }));
 app.use(['/api/block', '/api/blocks'], createRateLimiter({ enabled: rateEnabled, ...rateLimits.blockAndTxLookup, keyFn: ipKey, group: 'blockAndTxLookup' }));
 app.use('/api/tx', createRateLimiter({ enabled: rateEnabled, ...rateLimits.blockAndTxLookup, keyFn: ipKey, group: 'blockAndTxLookup', skip: (req) => req.method !== 'GET' }));
 app.use(['/api/balance', '/api/nonce', '/api/address'], createRateLimiter({ enabled: rateEnabled, ...rateLimits.addressHistory, keyFn: ipKey, group: 'addressHistory' }));
@@ -72,6 +87,12 @@ app.use('/api/network/observers', createRateLimiter({ enabled: rateEnabled, ...r
 app.use('/api/mining', createRateLimiter({ enabled: rateEnabled, ...rateLimits.operator, keyFn: ipKey, group: 'operator' }));
 app.use('/api/debug', createRateLimiter({ enabled: rateEnabled, ...rateLimits.operator, keyFn: ipKey, group: 'operator' }));
 app.use('/api/operator', createRateLimiter({ enabled: rateEnabled, ...rateLimits.operator, keyFn: ipKey, group: 'operatorDashboard' }));
+app.use('/api/community/discord/start', createRateLimiter({ enabled: rateEnabled, ...rateLimits.communityOAuth, keyFn: ipKey, group: 'communityOAuth' }));
+app.use('/api/community/discord/callback', createRateLimiter({ enabled: rateEnabled, ...rateLimits.communityOAuth, keyFn: ipKey, group: 'communityOAuthCallback' }));
+app.use('/api/community/challenge', createRateLimiter({ enabled: rateEnabled, ...rateLimits.communityChallenge, keyFn: communityKey, group: 'communityChallenge' }));
+app.use('/api/community/verify', createRateLimiter({ enabled: rateEnabled, ...rateLimits.communityVerify, keyFn: communityKey, group: 'communityVerify' }));
+app.use('/api/community/sync-roles', createRateLimiter({ enabled: rateEnabled, ...rateLimits.communitySync, keyFn: communityKey, group: 'communitySync' }));
+app.use('/api/community/unlink', createRateLimiter({ enabled: rateEnabled, ...rateLimits.communityUnlink, keyFn: communityKey, group: 'communityUnlink' }));
 app.use('/api/tx', createRateLimiter({ enabled: rateEnabled, ...rateLimits.transaction, keyFn: ipKey, group: 'transaction', skip: skipPostTx }));
 app.use('/api/tx', createConcurrencyLimiter({ enabled: rateEnabled, maxConcurrentPerIp: rateLimits.transaction?.maxConcurrentPerIp, keyFn: ipKey, group: 'transactionConcurrency', skip: skipPostTx }));
 app.use('/api/network/heartbeat', createRateLimiter({ enabled: rateEnabled, ...rateLimits.heartbeat, keyFn: ipKey, group: 'heartbeatIp', skip: skipNotPost }));
@@ -80,12 +101,21 @@ app.use('/api', createContentLengthPrecheck(bodyLimits.json));
 app.use('/api/tx', createJsonBodyParser(bodyLimits.transaction));
 app.use('/api/network/heartbeat', createJsonBodyParser(bodyLimits.heartbeat));
 app.use('/api/observer/settings', createJsonBodyParser(bodyLimits.observerSettings));
+app.use('/api/community', createJsonBodyParser(bodyLimits.community));
 app.use('/api/blocks', blocksRouter(blockchain, config));
 if (miner) app.use('/api/mining', miningRouter(miner, config));
 if (mempool) app.use('/api/mempool', mempoolRouter(mempool));
 app.use('/api', rpcRouter(blockchain, mempool, config, logger.child({ component: 'rpc' })));
 app.use('/api/network', networkRouter(blockchain, storage, mempool, config, logger.child({ component: 'network' })));
 app.use('/api/observer', observerSettingsRouter(config, dataDir));
+app.use('/api/community', communityRouter({
+  config: communityRuntimeConfig,
+  sessions: communityIdentity.sessions,
+  oauth: communityIdentity.oauth,
+  identityService: communityIdentity.identityService,
+  logger: logger.child({ component: 'community_identity' })
+}));
+app.use('/api/releases', releasesRouter(config));
 app.use('/api/debug', debugRouter(blockchain));
 app.use(operatorRouter({ blockchain, storage, mempool, miner, config, dataDir, metrics: operatorMetrics }));
 app.use('/api', requestSizeErrorHandler);
@@ -141,6 +171,12 @@ app.get(['/docs', '/docs/'], (req, res) => {
 app.get(['/network', '/network/'], (req, res) => {
   res.sendFile(path.join(publicDir, 'network.html'));
 });
+app.get(['/become-an-observer', '/become-an-observer/'], (req, res) => {
+  res.sendFile(path.join(publicDir, 'become-an-observer.html'));
+});
+app.get(['/economics', '/economics/'], (req, res) => {
+  res.sendFile(path.join(publicDir, 'economics.html'));
+});
 app.get(['/block/:height', '/block/:height/'], (req, res) => {
   res.sendFile(path.join(publicDir, blockTemplate));
 });
@@ -174,6 +210,25 @@ const server = app.listen(port, () => {
   }, 'Sparge node started');
 });
 
+if (communityIdentity.enabled) {
+  communityIdentity.roleSync.validate()
+    .then(() => {
+      logger.info('community_identity_started', {
+        operation: 'startup',
+        roleSyncEnabled: config.communityIdentity.roleSync.enabled
+      }, 'Community identity started');
+      communityIdentity.roleSync.start();
+    })
+    .catch((err) => {
+      logger.fatal('community_identity_startup_failed', {
+        operation: 'startup',
+        errorCode: err.code || 'COMMUNITY_STARTUP_FAILED',
+        error: err
+      }, 'Community identity startup validation failed');
+      server.close(() => process.exit(1));
+    });
+}
+
 if (observerSync) {
   observerSync.start();
 }
@@ -186,7 +241,9 @@ function shutdown(signal) {
   logger.info('node_shutdown', { operation: 'shutdown', signal }, 'Shutdown requested');
   if (observerSync) observerSync.stop();
   if (observerHeartbeat) observerHeartbeat.stop();
+  if (communityIdentity.roleSync) communityIdentity.roleSync.stop();
   server.close(() => {
+    if (communityIdentity.repository) communityIdentity.repository.close();
     logger.info('node_shutdown_completed', { operation: 'shutdown', signal }, 'Shutdown completed');
     process.exit(0);
   });

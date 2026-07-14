@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Become an Observer | Sparge</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="/site-shell.js" defer></script>
+</head>
+<body>
+  <header class="site-header" data-site-header></header>
+
+  <main class="page-container observer-onboarding">
+    <section class="observer-onboarding-hero">
+      <img class="observer-onboarding-art" src="/assets/badges/observer.png" alt="" width="360" height="360" />
+      <div class="observer-onboarding-hero-content">
+        <span class="observer-alpha-label">Windows Client &middot; Public Alpha</span>
+        <p class="eyebrow">Independent verification</p>
+        <h1 class="page-title">Become an Observer</h1>
+        <p class="observer-lead">Help independently verify Sparge by running a read-only Observer Node.</p>
+        <div class="observer-hero-actions">
+          <a class="btn primary observer-download-button" id="observerDownloadButton" aria-disabled="true">Windows download is being prepared</a>
+          <a class="btn ghost" href="https://spargenetwork.github.io/sparge-docs/observer/" target="_blank" rel="noreferrer">Read Full Documentation</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="observer-onboarding-section">
+      <div class="section-heading">
+        <p class="eyebrow">Read-only node</p>
+        <h2>What an Observer does</h2>
+      </div>
+      <div class="observer-do-grid">
+        <article class="observer-info-card tone-positive">
+          <h3>An Observer does</h3>
+          <ul class="observer-check-list">
+            <li>Download the Sparge chain</li>
+            <li>Validate every block locally</li>
+            <li>Check state roots and protocol rules</li>
+            <li>Serve a local read-only Explorer</li>
+            <li>Optionally appear in the public Observer list</li>
+          </ul>
+        </article>
+        <article class="observer-info-card">
+          <h3>An Observer does not</h3>
+          <ul class="observer-check-list observer-does-not">
+            <li>Produce blocks or participate in consensus</li>
+            <li>Control user funds or expose wallet keys</li>
+            <li>Require Participant registration</li>
+            <li>Earn guaranteed rewards</li>
+            <li>Modify the chain</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="observer-onboarding-section">
+      <div class="section-heading">
+        <p class="eyebrow">Why run one</p>
+        <h2>Verify Sparge for yourself</h2>
+      </div>
+      <div class="observer-benefit-grid">
+        <article><strong>Independent verification</strong><span>Check the canonical chain with your own local node.</span></article>
+        <article><strong>Network transparency</strong><span>Compare locally validated state with the public producer.</span></article>
+        <article><strong>Local chain copy</strong><span>Maintain a read-only copy of Sparge chain history.</span></article>
+        <article><strong>Local Explorer</strong><span>Browse blocks, transactions and addresses on your computer.</span></article>
+        <article><strong>Public Alpha testing</strong><span>Help identify synchronization and compatibility issues.</span></article>
+        <article><strong>Future decentralization</strong><span>Contribute operational experience without claiming a consensus role today.</span></article>
+      </div>
+    </section>
+
+    <section class="observer-onboarding-split">
+      <article class="panel observer-requirements-panel">
+        <div class="panel-header"><h2>Basic Requirements</h2></div>
+        <ul class="observer-requirement-list">
+          <li><strong>Operating system</strong><span>Windows 10 or Windows 11</span></li>
+          <li><strong>Architecture</strong><span>64-bit system</span></li>
+          <li><strong>Connection</strong><span>Stable internet connection</span></li>
+          <li><strong>Storage</strong><span>Free disk space that grows with chain history</span></li>
+          <li><strong>Installation</strong><span>Permission to install a desktop application</span></li>
+          <li><strong>SPG or wallet</strong><span>Not required for a private Observer</span></li>
+        </ul>
+      </article>
+
+      <article class="panel observer-release-panel" id="observerReleasePanel" aria-live="polite">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Official release</p>
+            <h2>Latest Windows Release</h2>
+          </div>
+          <span class="status-badge neutral" id="observerReleaseStatus">Checking</span>
+        </div>
+        <div class="observer-release-unavailable" id="observerReleaseUnavailable">
+          <strong>Windows download is being prepared.</strong>
+          <span>The Observer guide remains available while a compatible Public Alpha installer is prepared.</span>
+        </div>
+        <dl class="observer-release-meta" id="observerReleaseMeta" hidden>
+          <div><dt>Version</dt><dd id="observerReleaseVersion">-</dd></div>
+          <div><dt>Release date</dt><dd id="observerReleaseDate">-</dd></div>
+          <div><dt>File type</dt><dd>Windows installer (.exe)</dd></div>
+          <div><dt>File size</dt><dd id="observerReleaseSize">-</dd></div>
+          <div><dt>File name</dt><dd id="observerReleaseFile">-</dd></div>
+        </dl>
+        <div class="observer-checksum" id="observerChecksum" hidden>
+          <span>SHA-256</span>
+          <code id="observerChecksumValue"></code>
+          <button class="copy-link" id="observerChecksumCopy" type="button">Copy checksum</button>
+          <small>Use the checksum to verify that your download has not been altered.</small>
+        </div>
+        <a class="btn primary observer-release-download" id="observerReleaseDownload" aria-disabled="true">Download unavailable</a>
+      </article>
+    </section>
+
+    <section class="observer-onboarding-section">
+      <div class="section-heading">
+        <p class="eyebrow">Quick setup</p>
+        <h2>From download to Fully Synced</h2>
+      </div>
+      <ol class="observer-setup-steps">
+        <li><span>1</span><div><strong>Download</strong><p>Download the official Windows Observer installer.</p></div></li>
+        <li><span>2</span><div><strong>Install</strong><p>Open the installer and complete the normal Windows installation.</p></div></li>
+        <li><span>3</span><div><strong>Open</strong><p>Launch Sparge Observer.</p></div></li>
+        <li><span>4</span><div><strong>Confirm</strong><p>Check that the official producer URL is selected.</p></div></li>
+        <li><span>5</span><div><strong>Synchronize</strong><p>Start synchronization and keep the application online.</p></div></li>
+        <li><span>6</span><div><strong>Verify</strong><p>Wait until the status shows Fully Synced.</p></div></li>
+        <li><span>7</span><div><strong>Choose privacy</strong><p>Decide whether the Observer should appear publicly.</p></div></li>
+      </ol>
+    </section>
+
+    <section class="observer-onboarding-section">
+      <div class="section-heading">
+        <p class="eyebrow">Privacy choice</p>
+        <h2>Public listing is optional</h2>
+      </div>
+      <div class="observer-privacy-choice">
+        <article class="observer-info-card tone-positive">
+          <span class="status-badge ok">Default</span>
+          <h3>No, keep it private</h3>
+          <p>It may still contribute to aggregate network counts. Its alias, country and public details are not listed.</p>
+        </article>
+        <article class="observer-info-card">
+          <span class="status-badge neutral">Optional</span>
+          <h3>Yes, list it publicly</h3>
+          <p>Only privacy-safe alias, country, version, height, lag, status and last-seen information can be shown.</p>
+          <p>No hostname, username, raw IP address, internal node ID or machine details are published.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel observer-current-status">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Current status</p>
+          <h2>Observer Network</h2>
+        </div>
+        <a class="btn ghost" href="/network">Open Network Page</a>
+      </div>
+      <div class="observer-status-grid">
+        <div><span>Release channel</span><strong>Public Alpha</strong></div>
+        <div><span>Windows client</span><strong id="observerCurrentVersion">Preparing release</strong></div>
+        <div><span>Producer</span><strong id="observerProducerStatus">Checking</strong></div>
+        <div><span>Active Observers</span><strong id="observerActiveCount">-</strong></div>
+      </div>
+    </section>
+
+    <section class="observer-onboarding-split observer-help-grid">
+      <article class="panel">
+        <div class="panel-header"><h2>Need more detail?</h2></div>
+        <div class="observer-link-list">
+          <a href="https://spargenetwork.github.io/sparge-docs/observer/" target="_blank" rel="noreferrer"><strong>Read the full Observer Node Guide</strong><span>Installation, synchronization, privacy and status details</span></a>
+          <a href="https://spargenetwork.github.io/sparge-docs/observer/#privacy-and-public-listing" target="_blank" rel="noreferrer"><strong>Privacy and public listing</strong><span>Exactly what can appear in the public node list</span></a>
+        </div>
+      </article>
+      <article class="panel">
+        <div class="panel-header"><h2>Troubleshooting</h2></div>
+        <div class="observer-link-list">
+          <a href="https://spargenetwork.github.io/sparge-docs/observer/#troubleshooting" target="_blank" rel="noreferrer">Observer remains offline</a>
+          <a href="https://spargenetwork.github.io/sparge-docs/observer/#troubleshooting" target="_blank" rel="noreferrer">Synchronization does not start</a>
+          <a href="https://spargenetwork.github.io/sparge-docs/observer/#troubleshooting" target="_blank" rel="noreferrer">Producer unreachable or version mismatch</a>
+          <a href="https://spargenetwork.github.io/sparge-docs/observer/#privacy-and-public-listing" target="_blank" rel="noreferrer">Observer not appearing publicly</a>
+        </div>
+      </article>
+    </section>
+
+    <aside class="observer-download-safety" role="note">
+      <strong>Download safety</strong>
+      <span>Only download the Observer client from official Sparge sources. Sparge Observer never asks for wallet private keys, wallet exports, Discord tokens or administrator credentials beyond normal installation requirements.</span>
+    </aside>
+  </main>
+
+  <script src="/observer-onboarding.js"></script>
+</body>
+</html>

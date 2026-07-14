@@ -194,6 +194,14 @@ function createWindow() {
   });
 }
 
+function communityIdentityUrl() {
+  const cfg = readObserverConfig();
+  const base = process.env.COMMUNITY_PUBLIC_BASE_URL || cfg?.communityPublicBaseUrl || cfg?.producerUrl || currentProducerUrl || '';
+  const parsed = new URL(base);
+  if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Community identity URL must use HTTP(S)');
+  return new URL('/wallet?community=open', parsed).toString();
+}
+
 function ensureTray() {
   if (tray) return;
   const iconPath = path.join(__dirname, '..', 'public', 'assets', 'sparge_logo.png');
@@ -413,6 +421,10 @@ ipcMain.handle('observer:setShellSettings', (_event, settings) => {
   const next = writeShellSettings(settings);
   if (next.minimizeToTray) ensureTray();
   return next;
+});
+ipcMain.handle('observer:openCommunityIdentity', async () => {
+  await shell.openExternal(communityIdentityUrl());
+  return true;
 });
 
 app.whenReady().then(() => {

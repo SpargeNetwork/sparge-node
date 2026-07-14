@@ -5,19 +5,14 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Sparge Observer Setup</title>
     <link rel="stylesheet" href="/styles.css" />
+    <script src="/site-shell.js" defer></script>
   </head>
   <body class="theme-dark">
-    <div class="page">
-      <header class="topbar">
-        <div class="logo">
-          <img src="/assets/sparge_logo.png" alt="Sparge" width="28" height="28" />
-          <span>Sparge Observer</span>
-        </div>
-      </header>
-      <main class="content">
-        <section class="panel setup-panel">
+    <header class="site-header" data-site-header data-active-nav="explorer"></header>
+    <main class="page-container setup-main">
+      <section class="panel setup-panel">
           <p class="eyebrow">First run</p>
-          <h1>Set up Sparge Observer</h1>
+          <h1 class="page-title">Set up Sparge Observer</h1>
           <p class="muted">Connect this computer to a Sparge producer. Your observer will sync and validate chain data locally without producing blocks.</p>
           <form id="setup-form">
             <label class="field">
@@ -49,9 +44,8 @@
             </div>
             <div id="setup-error" class="error hidden"></div>
           </form>
-        </section>
-      </main>
-    </div>
+      </section>
+    </main>
     <script src="/setup.js"></script>
   </body>
 </html>

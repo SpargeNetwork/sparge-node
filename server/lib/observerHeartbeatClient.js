@@ -2,6 +2,7 @@ const http = require('http');
 const https = require('https');
 const { getOrCreateNodeIdentity } = require('./observerNodeIdentity');
 const { getObserverPrivacySettings } = require('./observerPrivacy');
+const { getSoftwareVersion } = require('./softwareVersion');
 
 function postJson(url, payload, timeoutMs) {
   const body = JSON.stringify(payload);
@@ -46,7 +47,7 @@ function createObserverHeartbeatClient(blockchain, config, dataDir, logger = nul
       await postJson(url, {
         nodeId: identity.nodeId,
         nodeMode: 'observer',
-        version: config.chain?.protocolVersion || '1.0.0',
+        version: getSoftwareVersion(config),
         height: Number(state.syncedHeight ?? state.latestHeight ?? 0),
         latestHash: state.latestHash || state.latestBlock?.hash || '',
         publicListingEnabled: privacy.publicListingEnabled,

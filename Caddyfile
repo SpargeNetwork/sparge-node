@@ -10,6 +10,9 @@ http://{$SPARGE_DOMAIN} {
 https://{$SPARGE_DOMAIN} {
 	encode zstd gzip
 
+	@discordOAuthCallback path /api/community/discord/callback
+	log_skip @discordOAuthCallback
+
 	request_body {
 		max_size 32KB
 	}

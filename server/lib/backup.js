@@ -3,6 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
 const YAML = require('yaml');
+const { getSoftwareVersion } = require('./softwareVersion');
 const { writeZip, readZip } = require('./zipArchive');
 const { computeGenesisHash } = require('./genesis');
 const { SqliteStorage } = require('../storage/sqliteStorage');
@@ -95,7 +96,7 @@ async function createBackup({ dataDir, configPath, outDir, logger = null }) {
     const genesis = readJson(genesisPath);
     const configRaw = fs.readFileSync(configPath);
     const config = YAML.parse(configRaw.toString('utf8')) || {};
-    const softwareVersion = config.chain?.protocolVersion || '1.0.0';
+    const softwareVersion = getSoftwareVersion(config);
     const payloadFiles = [
       { name: 'data/state.db', data: fs.readFileSync(tmpDb) },
       { name: 'data/genesis.json', data: fs.readFileSync(genesisPath) },

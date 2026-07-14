@@ -8,5 +8,6 @@ contextBridge.exposeInMainWorld('observerShell', {
   stopObserver: () => ipcRenderer.invoke('observer:stop'),
   resetLocalData: (confirmPhrase) => ipcRenderer.invoke('observer:resetLocalData', confirmPhrase),
   getShellSettings: () => ipcRenderer.invoke('observer:getShellSettings'),
-  setShellSettings: (settings) => ipcRenderer.invoke('observer:setShellSettings', settings)
+  setShellSettings: (settings) => ipcRenderer.invoke('observer:setShellSettings', settings),
+  openCommunityIdentity: () => ipcRenderer.invoke('observer:openCommunityIdentity')
 });

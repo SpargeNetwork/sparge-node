@@ -7,27 +7,17 @@
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
   <link rel="stylesheet" href="/styles.css" />
+  <script src="/site-shell.js" defer></script>
 </head>
 <body>
-  <header class="hero">
-    <a class="brand" href="/">
-      <img src="/assets/sparge_logo.png" alt="Sparge logo" class="logo-img" />
-      <div class="title">Sparge</div>
-    </a>
-    <nav class="top-nav">
-      <a href="/" class="nav-link active">Explorer</a>
-      <a href="/wallet" class="nav-link">Wallet</a>
-      <a href="https://spargenetwork.github.io/sparge-docs/" class="nav-link" target="_blank" rel="noreferrer">Docs</a>
-    </nav>
-    <div class="header-actions"></div>
-  </header>
+  <header class="site-header" data-site-header data-active-nav="explorer"></header>
 
-  <main>
+  <main class="page-container">
     <section class="panel" id="blockPage">
       <div class="panel-header">
         <div>
           <a class="back-link" href="/">Back to Explorer</a>
-          <h2>Block</h2>
+          <h1 class="page-title">Block</h1>
         </div>
         <div class="toast" id="copyToast">Copied!</div>
       </div>
@@ -48,6 +38,9 @@
     </section>
   </main>
 
+  <script src="/explorer-tx.js"></script>
+  <script src="/participant-ui.js"></script>
+  <script src="/reward-distribution.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

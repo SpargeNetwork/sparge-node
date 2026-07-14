@@ -38,6 +38,19 @@ const HEARTBEAT_FIELDS = new Set([
   'countryCode'
 ]);
 const OBSERVER_SETTINGS_FIELDS = new Set(['publicListingEnabled', 'publicAlias', 'countryCode']);
+const COMMUNITY_CHALLENGE_FIELDS = new Set(['walletAddress']);
+const COMMUNITY_VERIFY_FIELDS = new Set(['challengeId', 'challenge', 'walletAddress', 'publicKeyHex', 'signatureHex']);
+const COMMUNITY_UNLINK_FIELDS = new Set(['confirm']);
+const COMMUNITY_PRIVACY_FIELDS = new Set([
+  'publicProfileEnabled',
+  'publicDiscordNameEnabled',
+  'publicBadgesEnabled',
+  'publicWalletVerifiedEnabled',
+  'publicParticipantStatusEnabled',
+  'publicObserverStatusEnabled',
+  'publicBalanceEnabled'
+]);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 function pass(value) {
   return { ok: true, value };
@@ -413,6 +426,84 @@ function observerSettingsBody(input) {
   });
 }
 
+function transactionMetricsQuery(input) {
+  const base = requirePlainObject(input);
+  if (base.length) return failMany(base);
+  const details = unknownFieldDetails(input, new Set(['range']));
+  const range = input.range === undefined ? '24h' : input.range;
+  if (typeof range !== 'string' || !new Set(['24h', '7d', '30d', 'all']).has(range)) {
+    details.push(validationDetail('range', 'Unsupported metrics range'));
+  }
+  if (details.length) return failMany(details);
+  return pass({ range });
+}
+
+function communityChallengeBody(input) {
+  const base = requirePlainObject(input);
+  if (base.length) return failMany(base);
+  const details = unknownFieldDetails(input, COMMUNITY_CHALLENGE_FIELDS);
+  const walletAddress = address(input.walletAddress, 'walletAddress');
+  if (walletAddress.detail) details.push(walletAddress.detail);
+  if (details.length) return failMany(details);
+  return pass({ walletAddress: walletAddress.value });
+}
+
+function communityVerifyBody(input) {
+  const base = requirePlainObject(input);
+  if (base.length) return failMany(base);
+  const details = unknownFieldDetails(input, COMMUNITY_VERIFY_FIELDS);
+  const challengeId = stringField(input.challengeId, 'challengeId', { min: 36, max: 36, pattern: UUID_RE, allowEmpty: false, reason: 'Expected a challenge ID' });
+  const challenge = stringField(input.challenge, 'challenge', { min: 100, max: 2048, allowEmpty: false });
+  const walletAddress = address(input.walletAddress, 'walletAddress');
+  const publicKeyHex = hash64(input.publicKeyHex, 'publicKeyHex');
+  const signatureHex = stringField(input.signatureHex, 'signatureHex', { min: 128, max: 128, pattern: HEX_128_RE, allowEmpty: false, reason: 'Expected 128 lowercase hex characters' });
+  for (const parsed of [challengeId, challenge, walletAddress, publicKeyHex, signatureHex]) if (parsed.detail) details.push(parsed.detail);
+  if (!challenge.detail) {
+    const bytes = byteLimit(challenge.value, 'challenge', 2048);
+    if (bytes) details.push(bytes);
+  }
+  if (details.length) return failMany(details);
+  return pass({
+    challengeId: challengeId.value,
+    challenge: challenge.value,
+    walletAddress: walletAddress.value,
+    publicKeyHex: publicKeyHex.value,
+    signatureHex: signatureHex.value
+  });
+}
+
+function communityUnlinkBody(input) {
+  const base = requirePlainObject(input);
+  if (base.length) return failMany(base);
+  const details = unknownFieldDetails(input, COMMUNITY_UNLINK_FIELDS);
+  if (input.confirm !== 'UNLINK') details.push(validationDetail('confirm', 'Explicit UNLINK confirmation is required'));
+  if (details.length) return failMany(details);
+  return pass({ confirm: 'UNLINK' });
+}
+
+function communityPrivacyBody(input) {
+  const base = requirePlainObject(input);
+  if (base.length) return failMany(base);
+  const details = unknownFieldDetails(input, COMMUNITY_PRIVACY_FIELDS);
+  const value = {};
+  for (const field of COMMUNITY_PRIVACY_FIELDS) {
+    if (typeof input[field] !== 'boolean') details.push(validationDetail(field, 'Expected a boolean'));
+    else value[field] = input[field];
+  }
+  if (details.length) return failMany(details);
+  return pass(value);
+}
+
+function communityProfileParams(input) {
+  const base = requirePlainObject(input);
+  if (base.length) return failMany(base);
+  const details = unknownFieldDetails(input, new Set(['walletAddress']));
+  const walletAddress = address(input.walletAddress, 'walletAddress');
+  if (walletAddress.detail) details.push(walletAddress.detail);
+  if (details.length) return failMany(details);
+  return pass({ walletAddress: walletAddress.value });
+}
+
 module.exports = {
   ADDRESS_RE,
   CHAIN_ID_RE,
@@ -422,8 +513,14 @@ module.exports = {
   txidParams,
   addressTxsQuery,
   blocksQuery,
+  transactionMetricsQuery,
   observerListQuery,
   signedTxBody,
   heartbeatBody,
-  observerSettingsBody
+  observerSettingsBody,
+  communityChallengeBody,
+  communityVerifyBody,
+  communityUnlinkBody,
+  communityPrivacyBody,
+  communityProfileParams
 };

@@ -7,6 +7,7 @@ This project is pre-launch and experimental. Breaking changes are expected befor
 ## [Unreleased]
 
 ### Added
+- Public-alpha documentation architecture with compact MkDocs navigation, consolidated protocol/developer/operator guides, a configuration reference, and a private internal documentation area.
 - Deterministic full-chain replay CLI (`npm run replay`) and `npm run test:replay` coverage for read-only genesis-to-tip reconstruction, final state comparison, corruption detection, and restored-backup replay.
 - Production-grade producer backup and restore CLI with versioned metadata, SHA-256 checksums, SQLite snapshotting, and restore audit verification.
 - Disabled-by-default private Operator Dashboard for loopback-only producer monitoring.
@@ -19,6 +20,7 @@ This project is pre-launch and experimental. Breaking changes are expected befor
 - Electron-based Windows Observer app packaging flow (`npm run dist:observer:win`).
 
 ### Changed
+- Consolidated feature-per-file documentation into audience-oriented guides without changing protocol, APIs, deployment configuration, or runtime behavior.
 - Storage backend defaults to SQLite with chain identity meta checks.
 - Observer mode is read-only and validates synced blocks from producer API.
 - Explorer split into dedicated pages for block, tx, and address views.

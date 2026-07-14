@@ -5,6 +5,9 @@ const { normalizeSecurityConfig } = require('./requestSize');
 const { normalizeRateLimitConfig } = require('./httpSecurity');
 const { normalizeMempoolConfig } = require('./mempool');
 const { normalizeLoggingConfig } = require('./logger');
+const { normalizeParticipantRewardRamp, normalizeParticipationConfig } = require('./participantRewards');
+const { normalizeCommunityIdentityConfig } = require('../community/config');
+const { normalizeObserverDownloadsConfig } = require('./observerDownloads');
 
 const defaultConfigPath = path.join(__dirname, '..', '..', 'config', 'config.yml');
 const configPath = process.env.CONFIG_PATH || defaultConfigPath;
@@ -95,6 +98,10 @@ function loadConfig() {
   normalizeInvariantConfig(parsed);
   normalizeOperatorDashboardConfig(parsed);
   normalizeLoggingConfig(parsed);
+  normalizeParticipantRewardRamp(parsed);
+  normalizeParticipationConfig(parsed);
+  normalizeCommunityIdentityConfig(parsed);
+  normalizeObserverDownloadsConfig(parsed);
   const enableAdminOverride = parseEnvBool(process.env.DEV_ENABLE_ADMIN);
   if (enableAdminOverride !== null) {
     parsed.dev.enableAdmin = enableAdminOverride;

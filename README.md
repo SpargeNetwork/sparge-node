@@ -1,116 +1,88 @@
-# Sparge Chain (Pre-launch, Experimental)
+# Sparge Chain
 
-Sparge is experimental software.
-No financial guarantees. Not an investment. Breaking changes may happen before stable launch.
+Sparge Chain is experimental public-alpha blockchain software. It is not an investment or financial guarantee. The current network uses one official producer; read-only observer nodes independently synchronize and validate its chain state.
 
-## Quick Start (Producer Node)
+## Quick start
 
-- Install dependencies: `npm install`
-- Start producer node + explorer: `npm start`
-- Start block production: `npm run mine:start`
-- Stop block production: `npm run mine:stop`
+```powershell
+npm install
+npm start
+```
 
-Default producer URL: `http://localhost:3051`
+Open `http://localhost:3051` or query `http://localhost:3051/api/status`.
 
-## Docker Quick Start
+For isolated local block production, enable development administration before startup, then use the mining scripts:
 
-- Build image: `docker build -t sparge-node:test .`
-- Start producer + observer: `docker compose up -d --build`
-- Check services: `docker compose ps`
+```powershell
+$env:DEV_ENABLE_ADMIN="true"
+npm start
+npm run mine:start
+npm run mine:status
+npm run mine:stop
+```
 
-Docker keeps producer and observer data in separate named volumes. See `docs/docker.md`.
+Never enable these controls on an internet-facing node.
 
-For public HTTPS deployment, use the Caddy production Compose stack. See `docs/https-caddy.md`.
+## Wallet
 
-## Dev Admin Toggle (Local Testing)
+```powershell
+npm run wallet create
+npm run wallet show
+npm run tx send --to <spg_address> --amount 1 --fee 0.000001
+```
 
-Admin endpoints are disabled by default (`dev.enableAdmin: false`).
+Signing happens locally. Private keys are not sent to nodes. See the [Wallet Guide](docs/wallet.md).
 
-Use env override when you need local mining controls without editing config:
+## Observer
 
-- PowerShell enable: `$env:DEV_ENABLE_ADMIN="true"`
-- PowerShell disable: `$env:DEV_ENABLE_ADMIN="false"`
-- Clear override: `Remove-Item Env:DEV_ENABLE_ADMIN -ErrorAction SilentlyContinue`
+Set `node.mode: observer` and `node.producerUrl` in `config/config.yml`, use a separate data directory, and run `npm start`. An observer validates and serves explorer data but rejects transaction submission.
 
-Then start node as usual: `npm start`
+Windows installer build:
 
-## Wallet + Signed Transactions (CLI)
+```powershell
+npm run dist:observer:win
+```
 
-- Create wallet: `npm run wallet create`
-- Show wallet: `npm run wallet show` (add `--full` to show private key)
-- Send tx: `npm run tx send --to <address> --amount <tokens> --fee <tokens> [--memo "..."]`
+See the [Observer Node Guide](docs/observer.md) for synchronization, desktop paths, heartbeat privacy, and troubleshooting.
 
-## Transaction Types (v1)
+## Docker
 
-Canonical signing message:
-`type|chainId|from|to|amountMicro|feeMicro|nonce|publicKeyHex|sponsor|participant|memo?`
+```powershell
+docker compose up -d --build
+docker compose ps
+```
 
-Types:
-- `transfer`
-- `register_participant`
-- `unregister_participant`
-- `heartbeat`
+The local stack exposes producer `3051` and observer `3052` with separate persistent volumes. Public HTTPS deployment uses `docker-compose.production.yml` and Caddy; maintainers must follow the internal [Operator Guide](docs/internal/operator-guide.md) before deployment.
 
-## Observer Node (Read-only)
+## Documentation
 
-Observer mode:
-- syncs blocks from a producer
-- validates/applies blocks locally
-- serves explorer UI
-- rejects tx submission (`POST /api/tx` -> `403`)
-- sends a periodic private heartbeat to the producer so aggregate network health can count active observers
-- public observer listing is opt-in; hostnames and IP addresses are not publicly displayed
+- [Documentation Home](docs/index.md)
+- [Getting Started](docs/getting-started.md)
+- [Protocol Guide](docs/protocol.md)
+- [Builder Guide](docs/developer-guide.md)
+- [Public API](docs/rpc.md)
+- [Security](docs/security.md)
+- [Discord Community Identity](docs/community-identity.md)
 
-Run observer from source:
-- set in config: `node.mode: observer`
-- set producer URL: `node.producerUrl: "http://localhost:3051"`
-- start: `npm start`
+Maintainer-only documentation:
 
-## Windows Observer Desktop App (Electron)
+- [Internal Documentation Index](docs/internal/index.md)
+- [Node Development Guide](docs/internal/node-development.md)
+- [Operator Guide](docs/internal/operator-guide.md)
+- [Configuration Reference](docs/internal/configuration.md)
+- [Discord Identity Operations](docs/internal/discord-community-identity.md)
 
-Build installer:
-- `npm run dist:observer:win`
+Maintainer release and review material lives under `docs/internal/` and is intentionally absent from public MkDocs navigation.
 
-Output:
-- `release/Sparge Observer Setup 0.1.0.exe`
+## Development evidence
 
-First run:
-- opens setup flow inside the app
-- asks `producerUrl` and local observer port
-- stores data under `%APPDATA%\SpargeObserver\`
+Focused suites cover stability, recovery, participant maturation and UI documentation, economics, validation, request size, rate limits, mempool, runtime invariants, logging, observer network, dashboard, backup, and replay. The dedicated protocol correctness suite remains missing and must not be represented as covered by another test.
 
-## API Base
+Maintainer-only release evidence procedures are kept under `docs/internal/` and excluded from public navigation.
 
-All JSON endpoints are under `/api`.
-Examples:
-- `/api/status`
-- `/api/network/status`
-- `/api/network/observers`
-- `/api/block/:height`
-- `/api/tx/:txid`
-- `/api/address/:addr`
+## Core formats
 
-## Release Discipline
-
-- Changelog: `CHANGELOG.md`
-- Release notes template: `docs/RELEASE_TEMPLATE.md`
-
-## API Safety
-
-Malformed API bodies, route params, and query strings are rejected with a structured `VALIDATION_ERROR` response before route logic runs. See `docs/validation.md`.
-Oversized JSON bodies are rejected with `PAYLOAD_TOO_LARGE` before schema validation. See `docs/request-size-limits.md`.
-Public API routes use endpoint-specific in-memory rate limits and return `RATE_LIMITED` with `Retry-After` when exceeded. See `docs/rate-limits.md`.
-The producer mempool is bounded by count, bytes, sender count, and TTL; pending transactions are still in-memory only. See `docs/mempool.md`.
-Runtime chain, state, storage, and mempool invariants can pause mining on impossible state. See `docs/invariants.md`.
-Producer and observer logs use structured events, request IDs, redaction, and rotation. See `docs/logging.md`.
-Container deployment uses one non-root image for producer and observer modes. See `docs/docker.md`.
-Public HTTPS deployment uses Caddy as the only internet-facing service. See `docs/https-caddy.md`.
-Private producer monitoring is available through the disabled-by-default Operator Dashboard. See `docs/operator-dashboard.md`.
-Production backup and restore uses versioned verified ZIP archives. See `docs/backups.md`.
-Deterministic replay rebuilds chain state from genesis in a temporary data dir and compares the reconstructed tip with canonical SQLite state. See `docs/replay.md`.
-
-## Notes
-
-- Address format: `spg_` + base58(sha256(pubKeyBytes)[0..20])
-- `publicKeyHex` is raw Ed25519 public key (32 bytes, 64 hex chars)
-- `txid` hashes canonical message (signature not included)
+- Address: `spg_` + `base58(sha256(publicKeyBytes)[0..20])`
+- Public key: raw Ed25519 key, 32 bytes / 64 lowercase hex characters
+- Canonical transaction message: `type|chainId|from|to|amountMicro|feeMicro|nonce|publicKeyHex|sponsor|participant|memo?`
+- Transaction ID: SHA-256 of canonical UTF-8 message bytes, excluding the signature

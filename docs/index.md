@@ -1,87 +1,39 @@
-# Sparge
+# Sparge Chain
 
-Sparge is an experimental, JavaScript-native blockchain playground.
+Sparge Chain is an experimental public-alpha network with a browser wallet, explorer, on-chain participation, and independently validating observer nodes.
 
-It exists to explore what happens when communities, code, and AI come together,
-without pretending to be a financial system or an investment.
+The network currently has one official producer. Observers verify and store the chain independently, but they do not create blocks or participate in consensus.
 
-Sparge is desktop-first, community-driven, and intentionally minimal.
-Things may change. Things may break. That is part of the experiment.
+## Start here
 
----
+- [Getting Started](getting-started.md): use the live network for the first time.
+- [Wallet](wallet.md): create, back up, import, and use a browser wallet.
+- [Discord Community Identity](community-identity.md): privately link a verified wallet to Discord community roles.
+- [Participation and Rewards](protocol.md#participation-and-rewards): understand registration, sponsorship, activity, and maturity.
+- [Block Rewards and Pool Payouts](protocol.md#block-reward-distribution): understand emission, the 15/70/10/5 split, payout eligibility, and Treasury fallbacks.
+- [Observer Node](observer.md): independently sync and validate Sparge.
+- [Builder Guide](developer-guide.md): build an application against the existing network.
+- [Public API](rpc.md): review supported public HTTP endpoints.
+- [Security](security.md): protect wallet keys and understand Public Alpha risks.
+- [FAQ](faq.md): find short answers to common questions.
 
-## What is Sparge?
+## Public Alpha
 
-Sparge is a blockchain built in JavaScript, designed as a playground rather than a product.
+Sparge is not an investment, bank, fiat-backed asset, or promise of value. Public Alpha can include bugs, downtime, migrations, parameter changes, and explicitly announced resets. Do not store value you cannot afford to lose.
 
-It focuses on:
-- fast iteration
-- clear and readable code
-- community experimentation
-- tooling that feels closer to infrastructure software than fintech apps
+## How the network works
 
----
+The official producer orders valid transactions and creates blocks. Observer nodes fetch those blocks, verify chain identity and state transitions, and provide independent read-only copies of the explorer.
 
-## What Sparge is not
+Wallet keys are created and stored locally in your browser. The network receives signed transactions, never your private key.
 
-Sparge is not:
-- an investment
-- a promise of value
-- a bank or a fiat-backed system
-- a finished decentralized consensus network
+## What you can do
 
-There are no guarantees about:
-- uptime
-- permanence
-- future direction
-- exchange listings
+- Create or import a browser wallet.
+- Send and receive SPRG.
+- Register as a Participant and maintain activity.
+- Sponsor another Participant without gaining control of their wallet or rewards.
+- Inspect blocks, transactions, addresses, and network health.
+- Run an observer or build an application with the public API.
 
----
-
-## Network Model (Current)
-
-Current architecture is:
-- producer node(s): create blocks
-- observer nodes: sync and validate blocks, serve read-only explorer
-- network overview: producer and observer health from recent observer heartbeats
-- request validation: centralized `/api` body, param, and query schemas
-- request size limits: route-specific JSON body caps and safe oversized-request errors
-- rate limits: endpoint-specific API throttling, transaction concurrency caps, and trust proxy rules
-- bounded mempool: producer transaction pool capacity, TTL, and metrics
-- runtime invariants: chain/state/storage/mempool checks with fail-safe mining pause
-- structured logging: request IDs, event names, redaction, file rotation, and operator diagnostics
-- Docker: one non-root image for producer and observer modes with separate persistent volumes
-- HTTPS/Caddy: public reverse proxy with TLS, security headers, and internal-only node ports
-- Operator dashboard: disabled-by-default, loopback-only private producer monitoring
-- Backups: versioned producer backup archives with metadata, checksums, restore verification, and startup audit
-- Deterministic replay: read-only full-chain state reconstruction from genesis to a pinned tip
-
-Observer sync is currently HTTP producer-to-observer, not full P2P consensus.
-
----
-
-## Wallet and Keys
-
-Sparge wallet keys are generated and stored locally.
-Transactions are signed client-side or via local tooling.
-Private keys are never sent to server endpoints.
-
----
-
-## Status
-
-Sparge is early-stage and experimental.
-
-Expect:
-- breaking changes
-- evolving documentation
-- occasional reset/migration steps between milestones
-
----
-
-## Get Involved
-
-- run a producer locally
-- run an observer node
-- test wallet and explorer flows
-- report issues and edge cases
+Documentation for producer operation, chain configuration, backups, replay, releases, and node internals is maintained separately and is not part of the public documentation navigation.

@@ -8,6 +8,7 @@ const { createBlockchain } = require('../server/lib/blockchain');
 const { createMempool } = require('../server/lib/mempool');
 const { SqliteStorage } = require('../server/storage/sqliteStorage');
 const { runReplay } = require('../server/lib/replay');
+const { rebuildBalanceHistory } = require('../server/lib/balanceHistoryRepair');
 const { createBackup, restoreBackup, verifyBackupArchive } = require('../server/lib/backup');
 
 const ADDRESS_A = 'spg_2jCwDGKiH9CdfhkAZWKv6fSiAacn';
@@ -115,6 +116,45 @@ function writeConfig(filePath, cfg) {
   }
   const originalState = chain.getState();
   storage.close();
+
+  const persisted = openDb(sourceDir);
+  try {
+    const invalidHistory = persisted.prepare(
+      "SELECT COUNT(*) AS count FROM balance_history WHERE balanceMicro = 'undefined'"
+    ).get();
+    assert.strictEqual(invalidHistory.count, 0, 'balance history persists canonical balances');
+  } finally {
+    persisted.close();
+  }
+
+  const restartedStorage = new SqliteStorage(sourceDir, cfg);
+  const restartedLedger = restartedStorage.loadLedger();
+  for (const history of Object.values(restartedLedger.balanceHistory)) {
+    for (const entry of history) {
+      assert.match(entry.balanceMicro, /^(0|[1-9][0-9]*)$/, 'reloaded history uses balanceMicro');
+      assert.strictEqual(entry.balance, undefined, 'legacy balance field is not reintroduced');
+    }
+  }
+  restartedStorage.saveLedger(restartedLedger);
+  restartedStorage.close();
+
+  const corruptDb = openDb(sourceDir);
+  try {
+    corruptDb.prepare("UPDATE balance_history SET balanceMicro = 'undefined'").run();
+  } finally {
+    corruptDb.close();
+  }
+  const repair = rebuildBalanceHistory({ dataDir: sourceDir, config: cfg, apply: true });
+  assert.strictEqual(repair.applied, true, 'balance history repair is explicitly applied');
+  const repairedDb = openDb(sourceDir);
+  try {
+    const invalidHistory = repairedDb.prepare(
+      "SELECT COUNT(*) AS count FROM balance_history WHERE balanceMicro = 'undefined'"
+    ).get();
+    assert.strictEqual(invalidHistory.count, 0, 'deterministic replay repairs corrupted history');
+  } finally {
+    repairedDb.close();
+  }
 
   const reportPath = path.join(root, 'replay-report.json');
   const replayA = await runReplay({ dataDir: sourceDir, config: cfg, report: reportPath, progressEvery: 0 });

@@ -7,177 +7,406 @@
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
   <link rel="stylesheet" href="/styles.css" />
+  <script src="/site-shell.js" defer></script>
 </head>
-<body>
-  <header class="hero">
-    <a class="brand" href="/">
-      <img src="/assets/sparge_logo.png" alt="Sparge logo" class="logo-img" />
-      <div class="title">Sparge</div>
-    </a>
-    <nav class="top-nav">
-      <a href="/" class="nav-link">Explorer</a>
-      <a href="/wallet" class="nav-link active">Wallet</a>
-      <a href="https://spargenetwork.github.io/sparge-docs/" class="nav-link" target="_blank" rel="noreferrer">Docs</a>
-    </nav>
-    <div class="header-actions"></div>
-  </header>
+<body class="wallet-page">
+  <header class="site-header" data-site-header data-active-nav="wallet"></header>
 
-  <main>
-    <section class="panel dev-wallet" id="devWalletPanel">
-      <div class="panel-header">
-        <h2>Wallet</h2>
-        <div class="status" id="devWalletStatus">Not connected</div>
+  <main class="page-container wallet-main">
+    <section class="panel wallet-shell" id="devWalletPanel">
+      <div class="wallet-heading">
+        <div>
+          <p class="wallet-eyebrow">Local wallet</p>
+          <h1 class="page-title">Wallet</h1>
+        </div>
+        <div class="wallet-load-status" id="devWalletStatus" role="status">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>No wallet</span>
+        </div>
       </div>
 
-      <div class="wallet-actions">
-        <button class="btn primary" id="createWalletBtn">Create Wallet</button>
-        <button class="btn ghost" id="clearWalletBtn">Reset Wallet</button>
-      </div>
-
-      <div class="wallet-tabs">
-        <button class="tab-btn active" data-tab="overview">
-          <img src="/assets/overview.png" alt="" class="tab-icon" />
-          Overview
-        </button>
-        <button class="tab-btn" data-tab="send">
-          <img src="/assets/send.png" alt="" class="tab-icon" />
-          Send
-        </button>
-        <button class="tab-btn" data-tab="receive">
-          <img src="/assets/receive.png" alt="" class="tab-icon" />
-          Receive
-        </button>
-        <button class="tab-btn" data-tab="transactions">
-          <img src="/assets/transactions.png" alt="" class="tab-icon" />
-          Transactions
-        </button>
-        <button class="tab-btn" data-tab="participation" id="participationTabBtn">
-          <img src="/assets/participation.png" alt="" class="tab-icon" />
-          Participation
-        </button>
-        <button class="tab-btn" data-tab="advanced">
-          <img src="/assets/advanced.png" alt="" class="tab-icon" />
-          Advanced
-        </button>
-      </div>
-
-      <div class="wallet-tab-panel active" data-tab-panel="overview">
-        <div class="wallet-overview">
-        <div class="wallet-card balance-primary">
-          <div class="card-title">Balances</div>
-          <div class="balance-stack">
-            <div class="balance-block">
-              <div class="section-title">Available</div>
-              <div class="balance-amount" id="walletBalanceOverview">-</div>
-            </div>
-            <div class="balance-block">
-              <div class="section-title">Participant</div>
-              <div class="badge" id="participantBadge">-</div>
+      <div class="wallet-toolbar">
+        <div class="wallet-selector-wrap">
+          <button class="wallet-selector" id="walletSelectorBtn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="walletDropdown">
+            <span class="wallet-avatar" aria-hidden="true">W</span>
+            <span class="wallet-selector-copy">
+              <strong id="currentWalletName">No wallet selected</strong>
+              <span id="currentWalletAddress">Create or import a wallet</span>
+            </span>
+            <span class="selector-chevron" aria-hidden="true">⌄</span>
+          </button>
+          <div class="wallet-dropdown hidden" id="walletDropdown">
+            <div class="wallet-list" id="walletList" role="listbox" aria-label="Local wallets"></div>
+            <div class="wallet-dropdown-actions">
+              <button class="wallet-menu-action" id="renameWalletBtn" type="button">Rename wallet</button>
+              <button class="wallet-menu-action danger-text" id="deleteWalletBtn" type="button">Delete wallet</button>
             </div>
           </div>
         </div>
-        <div class="wallet-card light-panel">
-          <div class="card-title">Recent Transactions</div>
-          <div class="tx-list" id="walletActivityOverview">
-            <div class="detail-empty">No activity yet.</div>
-          </div>
-          <a class="view-all" id="walletActivityLink" href="#">View all activity -></a>
-        </div>
-      </div>
-      </div>
-
-      <div class="wallet-tab-panel" data-tab-panel="send">
-        <div class="wallet-card">
-          <div class="card-title">Send Transaction</div>
-          <form id="sendTxForm" class="tx-form">
-            <label>To Address<input type="text" id="txTo" required placeholder="spg_..." /></label>
-            <label><span class="label-with-icon"><img src="/assets/SPRG.png" alt="" class="sprg-icon" />Amount</span><input type="text" id="txAmount" required placeholder="0.0" /></label>
-            <label><span class="label-with-icon"><img src="/assets/SPRG.png" alt="" class="sprg-icon" />Fee</span><input type="text" id="txFee" required placeholder="0.0" /></label>
-            <div class="status" id="txFeeHint">Minimum fee: -</div>
-            <label>Memo (optional)<input type="text" id="txMemo" maxlength="128" placeholder="Memo (max 128 chars)" /></label>
-            <button class="btn primary" id="sendTxBtn" type="submit">Send</button>
-            <div class="status" id="sendTxStatus"></div>
-          </form>
+        <div class="wallet-primary-actions">
+          <button class="btn primary" id="createWalletBtn" type="button">Create Wallet</button>
+          <button class="btn ghost" id="importWalletBtn" type="button">Import Wallet</button>
+          <input type="file" id="importWalletFile" class="hidden" accept="application/json,.json" />
         </div>
       </div>
 
-      <div class="wallet-tab-panel" data-tab-panel="receive">
-        <div class="wallet-card">
-          <div class="card-title">Receive</div>
-          <div class="wallet-details">
-            <div class="detail-row"><span>Address</span><span id="walletAddressReceive">-</span></div>
-          </div>
-          <div class="wallet-actions">
-            <button class="btn ghost" id="copyAddressBtn">Copy address</button>
-          </div>
-          <div class="status">Copy this address to receive SPRG.</div>
+      <div class="wallet-empty-state" id="walletEmptyState">
+        <div class="wallet-empty-icon" aria-hidden="true">+</div>
+        <h2>Set up your first wallet</h2>
+        <p>Create a new wallet or import a backup to send and receive SPRG.</p>
+        <div class="wallet-primary-actions">
+          <button class="btn primary" id="emptyCreateWalletBtn" type="button">Create Wallet</button>
+          <button class="btn ghost" id="emptyImportWalletBtn" type="button">Import Wallet</button>
         </div>
       </div>
 
-      <div class="wallet-tab-panel" data-tab-panel="transactions">
-        <div class="wallet-card light-panel">
-          <div class="card-title">Transactions</div>
-          <div class="tx-list" id="walletActivity">
-            <div class="detail-empty">No activity yet.</div>
-          </div>
-          <div class="pager" id="walletActivityPager"></div>
+      <div id="walletContent" class="hidden">
+        <div class="wallet-tabs" role="tablist" aria-label="Wallet sections">
+          <button class="tab-btn active" data-tab="overview" role="tab" aria-selected="true">
+            <img src="/assets/overview.png" alt="" class="tab-icon" />Overview
+          </button>
+          <button class="tab-btn" data-tab="send" role="tab" aria-selected="false">
+            <img src="/assets/send.png" alt="" class="tab-icon" />Send
+          </button>
+          <button class="tab-btn" data-tab="receive" role="tab" aria-selected="false">
+            <img src="/assets/receive.png" alt="" class="tab-icon" />Receive
+          </button>
+          <button class="tab-btn" data-tab="transactions" role="tab" aria-selected="false">
+            <img src="/assets/transactions.png" alt="" class="tab-icon" />Transactions
+          </button>
+          <button class="tab-btn" data-tab="participation" id="participationTabBtn" role="tab" aria-selected="false">
+            <img src="/assets/participation.png" alt="" class="tab-icon" />Participation
+          </button>
+          <button class="tab-btn" data-tab="community" id="communityTabBtn" role="tab" aria-selected="false">
+            <img src="/assets/loyal.png" alt="" class="tab-icon" />Community
+          </button>
+          <button class="tab-btn" data-tab="advanced" role="tab" aria-selected="false">
+            <img src="/assets/advanced.png" alt="" class="tab-icon" />Advanced
+          </button>
         </div>
-      </div>
 
-      <div class="wallet-tab-panel" data-tab-panel="participation">
-        <div class="wallet-card">
-          <div class="card-title">Participation &amp; Rewards</div>
-          <div class="wallet-actions">
-            <button class="btn ghost" id="registerParticipantBtn">Register as participant</button>
-            <button class="btn ghost" id="unregisterParticipantBtn">Unregister</button>
-            <button class="btn ghost" id="heartbeatBtn">Heartbeat</button>
-          </div>
-          <div class="wallet-actions">
-            <input class="input" type="text" id="sponsorAddressInput" placeholder="Sponsor participant address (spg_...)" />
-            <button class="btn ghost" id="sponsorParticipantBtn">Sponsor address</button>
-          </div>
-          <div class="wallet-details">
-            <div class="detail-row"><span>Status</span><span id="participantStatus">-</span></div>
-            <div class="detail-row"><span>Bond Locked</span><span id="participantBond">-</span></div>
-            <div class="detail-row"><span>Sponsor</span><span id="participantSponsor">-</span></div>
-            <div class="detail-row"><span>Next Activity</span><span id="participantNext">-</span></div>
-            <div class="detail-row"><span>Auto Heartbeat</span><span><input type="checkbox" id="autoHeartbeatToggle" /></span></div>
-          </div>
-        </div>
-      </div>
+        <div class="wallet-tab-panel active" data-tab-panel="overview" role="tabpanel">
+          <div class="wallet-overview-layout">
+            <div class="wallet-overview-main">
+              <section class="wallet-address-card" aria-labelledby="walletAddressTitle">
+                <div>
+                  <p class="card-title" id="walletAddressTitle">Your Address</p>
+                  <div class="wallet-address-value mono" id="walletAddressOverview">-</div>
+                  <p class="card-note">This is your receiving address.</p>
+                </div>
+                <div class="wallet-compact-actions">
+                  <button class="btn ghost compact" id="copyAddressOverviewBtn" type="button">Copy Address</button>
+                  <button class="btn ghost compact" id="showQrBtn" type="button" disabled title="QR display is not available yet">Show QR</button>
+                </div>
+              </section>
 
-      <div class="wallet-tab-panel" data-tab-panel="advanced">
-        <div class="wallet-card">
-          <div class="card-title">Advanced details</div>
-          <p class="card-note">This is a development wallet. Keys are stored locally in your browser.</p>
-          <div class="wallet-actions">
-            <button class="btn ghost" id="exportWalletBtn">Export wallet</button>
-            <button class="btn ghost" id="importWalletBtn">Import wallet</button>
-            <input type="file" id="importWalletFile" class="hidden" accept="application/json" />
-          </div>
-          <div class="wallet-details">
-            <div class="detail-row"><span>Address</span><span id="walletAddress">-</span></div>
-            <div class="detail-row">
-              <span>Public Key</span>
-              <span>
-                <button class="copy-link" id="togglePublicKey">Show</button>
-                <span id="walletPublicKey" class="mono hidden">-</span>
-              </span>
+              <section class="wallet-balance-card" aria-label="Wallet balance">
+                <div class="balance-block">
+                  <span>Available balance</span>
+                  <strong class="balance-amount" id="walletBalanceOverview">-</strong>
+                  <small id="walletBalanceHint">Balance updates after confirmation.</small>
+                </div>
+                <div class="balance-block">
+                  <span>Pending transactions</span>
+                  <strong id="walletPendingCount">0</strong>
+                  <small>Waiting for block confirmation</small>
+                </div>
+              </section>
+
+              <section class="wallet-card wallet-activity-card">
+                <div class="wallet-card-heading">
+                  <div>
+                    <p class="card-title">Recent Activity</p>
+                    <h2>Transactions</h2>
+                  </div>
+                  <a class="view-all" id="walletActivityLink" href="#transactions">View all activity</a>
+                </div>
+                <div class="tx-list" id="walletActivityOverview">
+                  <div class="wallet-empty-inline"><strong>No transactions yet</strong><span>Send or receive SPRG to start using this wallet.</span></div>
+                </div>
+              </section>
             </div>
-            <div class="detail-row">
-              <span>Private Key</span>
-              <span>
-                <button class="copy-link" id="togglePrivateKey">Reveal</button>
-                <span id="walletPrivateKey" class="mono hidden">-</span>
-              </span>
+
+            <aside class="wallet-overview-side">
+              <section class="wallet-card status-summary-card">
+                <p class="card-title">Participation</p>
+                <div class="status-summary-line">
+                  <span class="status-dot" aria-hidden="true"></span>
+                  <strong>Participation status</strong>
+                  <span class="badge" id="participantBadge">Inactive</span>
+                </div>
+                <p class="card-note" id="participantNextShort">Register to participate in block rewards.</p>
+                <button class="copy-link overview-tab-link" type="button" data-open-wallet-tab="participation">View participation</button>
+              </section>
+
+              <section class="wallet-card maturity-card hidden" id="participantMaturityCard" aria-labelledby="participantMaturityTitle">
+                <div class="wallet-card-heading compact-heading">
+                  <div><p class="card-title">Participant Rewards</p><h2 id="participantMaturityTitle">Reward Maturity</h2></div>
+                  <span class="badge" id="participantMaturityBadge">-</span>
+                </div>
+                <div class="maturity-value-row"><strong id="participantMaturityPercent">-</strong><span id="participantMaturityMultiplier">-</span></div>
+                <div class="maturity-progress" role="progressbar" aria-label="Progress toward next reward maturity stage" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="participantMaturityProgress">
+                  <span id="participantMaturityProgressFill"></span>
+                </div>
+                <div class="wallet-metric-row"><span>Registered Height</span><strong id="participantMaturityRegistered">-</strong></div>
+                <div class="wallet-metric-row"><span>Participant Age</span><strong id="participantMaturityAge">-</strong></div>
+                <div class="wallet-metric-row"><span>Next Stage</span><strong id="participantMaturityTarget">-</strong></div>
+                <div class="wallet-metric-row"><span>Blocks Remaining</span><strong id="participantMaturityRemaining">-</strong></div>
+                <div class="wallet-metric-row"><span>Current Eligibility</span><strong id="participantMaturityEligibility">-</strong></div>
+                <p class="card-note" id="participantMaturityExplanation"></p>
+              </section>
+
+              <section class="wallet-card status-summary-card">
+                <p class="card-title">Network</p>
+                <div class="wallet-metric-row"><span>Status</span><strong id="walletNetworkStatus">Checking</strong></div>
+                <div class="wallet-metric-row"><span>Chain height</span><strong id="walletNetworkHeight">-</strong></div>
+                <p class="card-note">Balances and confirmations are read from the connected Sparge node.</p>
+              </section>
+
+              <section class="wallet-card status-summary-card">
+                <p class="card-title">Wallet safety</p>
+                <p class="card-note">Your keys are stored locally in this browser. Keep an offline backup before receiving funds.</p>
+                <button class="copy-link overview-tab-link" type="button" data-open-wallet-tab="advanced">Open backup tools</button>
+              </section>
+            </aside>
+          </div>
+        </div>
+
+        <div class="wallet-tab-panel" data-tab-panel="send" role="tabpanel">
+          <div class="wallet-card wallet-form-card">
+            <div class="wallet-card-heading"><div><p class="card-title">Send</p><h2>Send SPRG</h2></div></div>
+            <form id="sendTxForm" class="tx-form">
+              <label>To Address<input type="text" id="txTo" required placeholder="spg_..." autocomplete="off" spellcheck="false" /></label>
+              <label><span class="label-with-icon"><img src="/assets/SPRG.png" alt="" class="sprg-icon" />Amount</span><input type="text" id="txAmount" required placeholder="0.0" inputmode="decimal" /></label>
+              <label><span class="label-with-icon"><img src="/assets/SPRG.png" alt="" class="sprg-icon" />Fee</span><input type="text" id="txFee" required placeholder="0.0" inputmode="decimal" /></label>
+              <div class="status" id="txFeeHint">Minimum fee: -</div>
+              <label>Memo (optional)<input type="text" id="txMemo" maxlength="128" placeholder="Public memo (max 128 characters)" /></label>
+              <button class="btn primary" id="sendTxBtn" type="submit">Review and Send</button>
+              <div class="status" id="sendTxStatus" role="status"></div>
+            </form>
+          </div>
+        </div>
+
+        <div class="wallet-tab-panel" data-tab-panel="receive" role="tabpanel">
+          <div class="wallet-card receive-card">
+            <div class="wallet-card-heading"><div><p class="card-title">Receive</p><h2>Receive SPRG</h2></div></div>
+            <p class="card-note">Share this address with the sender. Always verify the complete address for an important payment.</p>
+            <div class="receive-address mono" id="walletAddressReceive">-</div>
+            <div class="wallet-compact-actions">
+              <button class="btn primary" id="copyAddressBtn" type="button">Copy Address</button>
+              <button class="btn ghost" type="button" disabled title="QR display is not available yet">Show QR</button>
             </div>
-            <div class="detail-row"><span>Nonce</span><span id="walletNonce">-</span></div>
+          </div>
+          <div class="wallet-card sponsorship-card hidden" id="walletSponsorshipsCard">
+            <div class="wallet-card-heading"><div><p class="card-title">Sponsorships</p><h2>Sponsored Participants</h2></div></div>
+            <div class="sponsorship-metrics" id="walletSponsorshipMetrics"></div>
+            <p class="wallet-warning-note">Only the participant can currently unregister and release the Sponsor Bond.</p>
+            <div class="sponsorship-list" id="walletSponsorshipList"></div>
+          </div>
+        </div>
+
+        <div class="wallet-tab-panel" data-tab-panel="transactions" role="tabpanel">
+          <div class="wallet-card">
+            <div class="wallet-card-heading"><div><p class="card-title">History</p><h2>Transactions</h2></div></div>
+            <div class="tx-list" id="walletActivity">
+              <div class="wallet-empty-inline"><strong>No transactions yet</strong><span>Send or receive SPRG to start using this wallet.</span></div>
+            </div>
+            <div class="pager" id="walletActivityPager"></div>
+          </div>
+        </div>
+
+        <div class="wallet-tab-panel" data-tab-panel="participation" role="tabpanel">
+          <div class="wallet-card wallet-form-card">
+            <div class="wallet-card-heading"><div><p class="card-title">Participation</p><h2>Participation &amp; Rewards</h2></div></div>
+            <div class="wallet-details participation-details">
+              <div class="detail-row"><span>Status</span><span id="participantStatus">-</span></div>
+              <div class="detail-row"><span>Bond Locked</span><span id="participantBond">-</span></div>
+              <div class="detail-row"><span>Sponsor</span><span id="participantSponsor">-</span></div>
+              <div class="detail-row"><span>Reward Maturity</span><span id="participantMaturity">-</span></div>
+              <div class="detail-row"><span>Registered</span><span id="participantRegistered">-</span></div>
+              <div class="detail-row"><span>Next Maturity Stage</span><span id="participantMaturityNext">-</span></div>
+              <div class="detail-row"><span>Next Activity</span><span id="participantNext">-</span></div>
+              <div class="detail-row"><span>Active Sponsored</span><span id="sponsoredActive">0</span></div>
+              <div class="detail-row"><span>Inactive Sponsored</span><span id="sponsoredInactive">0</span></div>
+              <div class="detail-row"><span>Available Sponsor Slots</span><span id="sponsorSlots">10</span></div>
+              <div class="detail-row"><span>Sponsored Bond Locked</span><span id="sponsorBondLocked">-</span></div>
+              <div class="detail-row"><span>Heartbeat Reminder</span><span><input type="checkbox" id="autoHeartbeatToggle" /></span></div>
+            </div>
+            <div class="wallet-actions">
+              <button class="btn primary" id="registerParticipantBtn" type="button">Register as Participant</button>
+              <button class="btn ghost" id="heartbeatBtn" type="button">Send Heartbeat</button>
+              <button class="btn danger" id="unregisterParticipantBtn" type="button">Unregister</button>
+            </div>
+            <div class="wallet-sponsor-row">
+              <input class="input" type="text" id="sponsorAddressInput" placeholder="Participant address to sponsor (spg_...)" />
+              <button class="btn ghost" id="sponsorParticipantBtn" type="button">Sponsor Address</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="wallet-tab-panel" data-tab-panel="community" role="tabpanel">
+          <div class="wallet-card community-card" id="walletCommunityCard">
+            <div class="wallet-card-heading">
+              <div><p class="card-title">Community Identity</p><h2>Discord &amp; Sparge</h2></div>
+              <span class="badge" id="communityLinkBadge">Checking</span>
+            </div>
+            <p class="card-note">Linking is private by default. It proves control of the selected wallet without creating a transaction or charging SPRG.</p>
+            <div class="community-disabled hidden" id="communityDisabled">Community Identity is not enabled on this network.</div>
+            <div id="communityDisconnected" class="hidden">
+              <div class="wallet-details">
+                <div class="detail-row"><span>Discord account</span><strong>Not linked</strong></div>
+                <div class="detail-row"><span>Selected wallet</span><span class="mono" id="communitySelectedWallet">-</span></div>
+              </div>
+              <p class="card-note">Your private key never leaves this browser. Discord linking does not send an on-chain transaction.</p>
+              <button class="btn primary" id="communityLinkDiscordBtn" type="button">Link Discord</button>
+            </div>
+            <div id="communityDiscordConnected" class="hidden">
+              <div class="wallet-details">
+                <div class="detail-row"><span>Discord</span><strong id="communityPendingDiscordName">Connected</strong></div>
+                <div class="detail-row"><span>Wallet to verify</span><span class="mono" id="communityPendingWallet">-</span></div>
+              </div>
+              <button class="btn primary" id="communityCreateChallengeBtn" type="button">Create Verification Message</button>
+              <div class="community-challenge hidden" id="communityChallengePanel">
+                <label for="communityChallengeText">Exact message to sign</label>
+                <pre id="communityChallengeText" tabindex="0"></pre>
+                <p class="card-note">Review this message. Signing proves wallet control only; it is not a blockchain transaction and costs no SPRG.</p>
+                <button class="btn primary" id="communitySignChallengeBtn" type="button">Sign Verification Message</button>
+              </div>
+            </div>
+            <div id="communityLinked" class="hidden">
+              <div class="wallet-details">
+                <div class="detail-row"><span>Discord</span><strong id="communityDiscordName">-</strong></div>
+                <div class="detail-row"><span>Linked Wallet</span><span class="mono" id="communityLinkedWallet">-</span></div>
+                <div class="detail-row"><span>Roles</span><span id="communityRoles">Verified Wallet</span></div>
+                <div class="detail-row"><span>Last Synced</span><span id="communityLastSynced">-</span></div>
+              </div>
+              <div class="wallet-actions">
+                <button class="btn ghost" id="communitySyncBtn" type="button">Sync Roles</button>
+                <button class="btn danger" id="communityUnlinkBtn" type="button">Unlink</button>
+              </div>
+              <details class="wallet-section community-privacy">
+                <summary>Privacy Settings</summary>
+                <div class="section-body" id="communityPrivacySettings">
+                  <p class="card-note">Only information you explicitly enable appears publicly.</p>
+                  <label class="check-field"><input type="checkbox" data-community-privacy="publicProfileEnabled" /> Enable public profile</label>
+                  <label class="check-field"><input type="checkbox" data-community-privacy="publicDiscordNameEnabled" /> Show Discord display name</label>
+                  <label class="check-field"><input type="checkbox" data-community-privacy="publicBadgesEnabled" /> Show Sparge badges</label>
+                  <label class="check-field"><input type="checkbox" data-community-privacy="publicWalletVerifiedEnabled" /> Show wallet as verified</label>
+                  <label class="check-field"><input type="checkbox" data-community-privacy="publicParticipantStatusEnabled" /> Show Participant status</label>
+                  <label class="check-field"><input type="checkbox" data-community-privacy="publicObserverStatusEnabled" /> Show Observer status</label>
+                  <label class="check-field"><input type="checkbox" data-community-privacy="publicBalanceEnabled" /> Show balance publicly</label>
+                  <button class="btn ghost" id="communitySavePrivacyBtn" type="button">Save Privacy</button>
+                </div>
+              </details>
+            </div>
+            <div class="status" id="communityStatus" role="status" aria-live="polite"></div>
+          </div>
+        </div>
+
+        <div class="wallet-tab-panel" data-tab-panel="advanced" role="tabpanel">
+          <div class="wallet-card advanced-wallet-card">
+            <div class="wallet-card-heading"><div><p class="card-title">Advanced</p><h2>Backup &amp; Keys</h2></div></div>
+            <div class="wallet-security-note">
+              <strong>Keep your wallet recoverable</strong>
+              <span>Private keys are stored locally in your browser. If you lose your browser data before creating a backup, your wallet cannot be recovered.</span>
+            </div>
+            <div class="advanced-action-grid">
+              <button class="btn primary" id="exportWalletBtn" type="button">Export Backup</button>
+              <button class="btn ghost" id="advancedImportWalletBtn" type="button">Import Backup</button>
+              <button class="btn danger" id="exportPrivateKeyBtn" type="button">Export Private Key</button>
+            </div>
+            <div class="wallet-details advanced-details">
+              <div class="detail-row"><span>Address</span><span class="detail-actions"><span id="walletAddress">-</span><button class="copy-link" id="copyAdvancedAddressBtn" type="button">Copy</button></span></div>
+              <div class="detail-row"><span>Created</span><span id="walletCreatedAt">-</span></div>
+              <div class="detail-row">
+                <span>Public Key</span>
+                <span class="detail-actions"><button class="copy-link" id="togglePublicKey" type="button">Show</button><button class="copy-link hidden" id="copyPublicKeyBtn" type="button">Copy</button><span id="walletPublicKey" class="mono hidden">-</span></span>
+              </div>
+              <div class="detail-row">
+                <span>Private Key</span>
+                <span class="detail-actions"><button class="copy-link" id="togglePrivateKey" type="button">Reveal</button><button class="copy-link hidden" id="copyPrivateKeyBtn" type="button">Copy</button><span id="walletPrivateKey" class="mono hidden">-</span></span>
+              </div>
+              <div class="detail-row"><span>Nonce</span><span id="walletNonce">-</span></div>
+              <div class="detail-row hidden"><span>Balance</span><span id="walletBalance">-</span></div>
+            </div>
           </div>
         </div>
       </div>
     </section>
   </main>
 
+  <dialog class="wallet-dialog" id="walletActionDialog" aria-labelledby="walletDialogTitle">
+    <div class="wallet-dialog-content">
+      <div class="wallet-dialog-heading">
+        <div class="dialog-symbol" id="walletDialogSymbol" aria-hidden="true">!</div>
+        <div><p class="wallet-eyebrow" id="walletDialogEyebrow">Wallet action</p><h2 id="walletDialogTitle">Confirm</h2></div>
+      </div>
+      <p id="walletDialogDescription"></p>
+      <label class="dialog-field hidden" id="walletDialogNameField">Wallet name<input id="walletDialogNameInput" type="text" maxlength="40" autocomplete="off" /></label>
+      <div class="dialog-warning" id="walletDialogWarning"></div>
+      <div class="wallet-dialog-actions">
+        <button class="btn ghost" id="walletDialogCancel" type="button">Cancel</button>
+        <button class="btn primary" id="walletDialogConfirm" type="button">Confirm</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="wallet-dialog" id="walletBackupDialog" aria-labelledby="walletBackupTitle">
+    <div class="wallet-dialog-content">
+      <div class="wallet-dialog-heading">
+        <div class="dialog-symbol safe" aria-hidden="true">✓</div>
+        <div><p class="wallet-eyebrow">Wallet created</p><h2 id="walletBackupTitle">Back up your wallet now</h2></div>
+      </div>
+      <p>Your wallet is ready. Save an offline backup before receiving SPRG.</p>
+      <div class="dialog-warning"><strong>Without a backup, this wallet cannot be recovered if browser data is lost.</strong></div>
+      <div class="wallet-dialog-actions">
+        <button class="btn ghost" id="walletBackupLater" type="button">I'll do this later</button>
+        <button class="btn primary" id="walletBackupNow" type="button">Export Backup</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="wallet-dialog signing-dialog" id="signingConfirmationDialog" aria-labelledby="signingTitle">
+    <div class="wallet-dialog-content signing-dialog-content">
+      <div class="wallet-dialog-heading">
+        <div class="signing-icon-wrap" aria-hidden="true"><img id="signingIcon" src="/assets/tx.png" alt="" /></div>
+        <div><p class="wallet-eyebrow" id="signingEyebrow">Transaction signature</p><h2 id="signingTitle">Sign Transaction</h2></div>
+      </div>
+      <p id="signingDescription"></p>
+      <div class="signing-summary" aria-label="Signing request summary">
+        <div class="signing-field"><span>Request</span><strong id="signingKind">Blockchain transaction</strong></div>
+        <div class="signing-field"><span>Selected wallet</span><strong class="mono" id="signingWallet">-</strong></div>
+        <div class="signing-field"><span>Network</span><strong id="signingNetwork">-</strong></div>
+        <div class="signing-field"><span>Network fee</span><strong id="signingFee">-</strong></div>
+      </div>
+      <div class="signing-payload" id="signingPayload"></div>
+      <section class="signing-message-panel hidden" id="signingMessagePanel" aria-label="Message to sign">
+        <div class="signing-section-heading"><strong>Message</strong><button class="copy-link" id="signingCopyMessage" type="button">Copy Message</button></div>
+        <pre id="signingMessage" tabindex="0"></pre>
+      </section>
+      <details class="signing-technical">
+        <summary>Show Raw Message</summary>
+        <pre id="signingRawMessage" tabindex="0"></pre>
+      </details>
+      <details class="signing-technical">
+        <summary>Show Hash</summary>
+        <div class="signing-hash-row"><code id="signingHash">-</code><button class="copy-link" id="signingCopyHash" type="button">Copy Hash</button></div>
+      </details>
+      <div class="signing-consequence" id="signingConsequence"></div>
+      <div class="status signing-status" id="signingStatus" role="status" aria-live="polite"></div>
+      <div class="wallet-dialog-actions">
+        <button class="btn ghost" id="signingReject" type="button">Reject</button>
+        <button class="btn primary" id="signingConfirm" type="button">Sign &amp; Broadcast</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div class="wallet-toast" id="walletToast" role="status" aria-live="polite"></div>
+
+  <script src="/wallet-store.js"></script>
+  <script src="/wallet-signing.js"></script>
+  <script src="/explorer-tx.js"></script>
+  <script src="/participant-ui.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

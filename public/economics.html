@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sparge Economics</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="/site-shell.js" defer></script>
+</head>
+<body>
+  <header class="site-header" data-site-header data-active-nav="economics"></header>
+
+  <main class="page-container">
+    <section class="economics-overview">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Economics</p>
+          <h1 class="page-title">Rewards and Tokenomics</h1>
+        </div>
+      </div>
+      <p class="network-note">Current emission, reward allocation and accumulated protocol pools.</p>
+    </section>
+
+    <section class="economics-section">
+      <div class="section-header">Current Block Distribution</div>
+      <div class="network-grid" id="economicsDistributionPanel"></div>
+    </section>
+
+    <section class="economics-section">
+      <div class="section-header">Reward Cycle and Pools</div>
+      <div class="network-grid" id="economicsPoolsPanel"></div>
+    </section>
+
+    <section class="economics-section">
+      <div class="section-header">Participant Reward Statistics</div>
+      <div class="network-grid" id="economicsParticipantsPanel"></div>
+    </section>
+  </main>
+
+  <script src="/explorer-tx.js"></script>
+  <script src="/participant-ui.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

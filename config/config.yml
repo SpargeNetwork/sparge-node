@@ -10,6 +10,22 @@ token:
   decimals: 9
   initialSupplyTokens: "5100000000"
 
+economics:
+  participation:
+    activeWindowBlocks: 5100
+    bondMicro: "50000000"
+    maxSponsoredParticipants: 10
+  participantRewardRamp:
+    enabled: true
+    activationHeight: 1000
+    stages:
+      - blocks: 5100
+        multiplier: "0.25"
+      - blocks: 10200
+        multiplier: "0.60"
+      - blocks: null
+        multiplier: "1.00"
+
 mining:
   proposerAddress: "spg_3D9sm1pyziUMXCkqYaJML3KJRpPd"
   genesisOperatorAddress: "spg_2jCwDGKiH9CdfhkAZWKv6fSiAacn"
@@ -62,11 +78,45 @@ tx:
   minFeeMicro: "1000"
 
 dev:
-  enableAdmin: false
+  enableAdmin: true
 
 operatorDashboard:
   enabled: true
   bindLocalOnly: true
+
+communityIdentity:
+  enabled: false
+  publicBaseUrl: ""
+  discord:
+    clientId: ""
+    clientSecret: ""
+    botToken: ""
+    guildId: ""
+    oauthRedirectUri: ""
+    roles:
+      verifiedWallet: "1526598701777424395"
+      participant: "1526598779250409594"
+      matureParticipant: "1526598835672191116"
+      observerOperator: ""
+      publicObserver: ""
+      builder: ""
+      earlyAlpha: ""
+  challenge:
+    expiresSeconds: 600
+  sessions:
+    expiresSeconds: 1800
+  roleSync:
+    enabled: true
+    intervalSeconds: 300
+    failureGraceSeconds: 1800
+  privacy:
+    publicProfilesDefault: false
+    publicDiscordNameDefault: false
+    publicBadgesDefault: false
+    publicWalletVerifiedDefault: false
+    publicParticipantStatusDefault: false
+    publicObserverStatusDefault: false
+    publicBalanceDefault: false
 
 http:
   corsAllowedOrigins:
@@ -90,6 +140,7 @@ security:
   maxTransactionBodyBytes: 16384
   maxHeartbeatBodyBytes: 4096
   maxObserverSettingsBodyBytes: 4096
+  maxCommunityBodyBytes: 8192
   rateLimits:
     enabled: true
     global:
@@ -118,6 +169,21 @@ security:
     operator:
       windowSeconds: 60
       maxRequestsPerIp: 5
+    communityOAuth:
+      windowSeconds: 600
+      maxRequestsPerIp: 10
+    communityChallenge:
+      windowSeconds: 600
+      maxRequestsPerIp: 5
+    communityVerify:
+      windowSeconds: 600
+      maxRequestsPerIp: 10
+    communitySync:
+      windowSeconds: 3600
+      maxRequestsPerIp: 5
+    communityUnlink:
+      windowSeconds: 3600
+      maxRequestsPerIp: 5
 
 node:
   mode: producer
@@ -140,3 +206,15 @@ network:
   heartbeatRateLimit:
     windowMs: 60000
     max: 20
+
+# Enable only after a compatible installer and metadata are published through
+# the official SpargeNetwork/sparge-node GitHub Releases repository.
+observerDownloads:
+  enabled: false
+  version: "0.1.1-alpha.0"
+  releaseDate: "2026-07-14"
+  windowsInstaller:
+    url: ""
+    fileName: "Sparge Observer Setup 0.1.1-alpha.0.exe"
+    fileSizeBytes: 145446467
+    checksumSha256: "32f81a43d5084bf702e2ac7ba4e8a13b803a882e4f6ee713db3bf2c117baf995"

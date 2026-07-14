@@ -8,6 +8,11 @@ const { buildNetworkStatus, buildObserverList, observerStatus } = require('../se
 const { getOrCreateNodeIdentity } = require('../server/lib/observerNodeIdentity');
 const { getObserverPrivacySettings, normalizePrivacy } = require('../server/lib/observerPrivacy');
 const { createRateLimiter } = require('../server/lib/httpSecurity');
+const { computeChainStats, calculateCirculatingSupplyUnits } = require('../server/lib/blockchain');
+const { getSoftwareVersion } = require('../server/lib/softwareVersion');
+
+assert.strictEqual(getSoftwareVersion(), require('../package.json').version, 'observer reports the software release version');
+assert.notStrictEqual(getSoftwareVersion(), '1.0.0', 'software version is distinct from protocol version');
 
 function tempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'sparge-network-test-'));
@@ -87,6 +92,21 @@ function assertValidationField(fn, field, label) {
 }
 
 (async () => {
+  const metricNow = Date.parse('2026-07-14T12:00:00.000Z');
+  const metricStats = computeChainStats([
+    { timestamp: '2026-07-13T11:59:59.000Z', mintUnits: '900', transactions: [] },
+    { timestamp: '2026-07-13T12:00:00.000Z', mintUnits: '100', transactions: [] },
+    { timestamp: '2026-07-14T11:59:59.000Z', payload: { mintUnits: '250' }, transactions: [] },
+    { timestamp: '2026-07-14T12:00:01.000Z', mintUnits: '800', transactions: [] }
+  ], 9, metricNow);
+  assert.strictEqual(metricStats.minted24hMicro, 350n, '24h mint includes the exact rolling window only');
+  assert.strictEqual(calculateCirculatingSupplyUnits({ balances: {
+    spendable: '1000',
+    treasury: '500',
+    nodePool: '700',
+    holderPool: '300'
+  } }, ['nodePool', 'holderPool']), 1500n, 'circulating supply excludes unpaid reward pools');
+
   const dir = tempDir();
   const store = new SqliteStorage(dir, config());
   const registry = createObserverRegistry(store, config());
@@ -156,6 +176,7 @@ function assertValidationField(fn, field, label) {
 
   const status = buildNetworkStatus(blockchain(10, 'a'.repeat(64)), store, { size: () => 4 }, config(), now);
   assert.strictEqual(status.activeObserverCount, 3, 'private observer contributes to aggregate counts');
+  assert.strictEqual(status.publicActiveObserverCount, 2, 'public active count only includes opted-in online observers');
   assert.strictEqual(status.fullySyncedObserverCount, 1, 'fully synced status count');
   assert.strictEqual(status.syncingObserverCount, 2, 'syncing status count');
   assert.strictEqual(status.mempoolSize, 4, 'mempool size included');

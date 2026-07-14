@@ -6,13 +6,14 @@ const {
   createTxId,
   buildMessage
 } = require('../lib/tx');
-const { PARTICIPANT_BOND_MICRO, MAX_SPONSORED_PARTICIPANTS } = require('../lib/participants');
+const { normalizeParticipationConfig } = require('../lib/participantRewards');
 const { validateBody, validateParams, validateQuery } = require('../lib/validation/middleware');
 const {
   addressParams,
   heightParams,
   txidParams,
   addressTxsQuery,
+  transactionMetricsQuery,
   signedTxBody
 } = require('../lib/validation/schemas');
 
@@ -20,6 +21,7 @@ const publicIndex = path.join(__dirname, '..', '..', 'public', 'index.html');
 
 function rpcRouter(blockchain, mempool, config, logger = null) {
   const router = express.Router();
+  const participationConfig = normalizeParticipationConfig(config);
 
   router.get('/status', (req, res) => {
     res.json(blockchain.getState());
@@ -201,12 +203,12 @@ function rpcRouter(blockchain, mempool, config, logger = null) {
         return;
       }
       const activeSponsored = blockchain.getSponsorActiveCount(tx.from);
-      if (activeSponsored >= MAX_SPONSORED_PARTICIPANTS) {
+      if (activeSponsored >= participationConfig.maxSponsoredParticipants) {
         logRejected(400, 'SPONSOR_LIMIT_REACHED', tx);
         res.status(400).json({ error: 'sponsor limit reached' });
         return;
       }
-      bondMicro = isGenesisFree ? 0n : PARTICIPANT_BOND_MICRO;
+      bondMicro = isGenesisFree ? 0n : BigInt(participationConfig.bondMicro);
     } else if (tx.type === 'unregister_participant' || tx.type === 'heartbeat') {
       if (tx.sponsor) {
         logRejected(400, 'INVALID_SPONSOR_FIELD', tx);
@@ -308,6 +310,10 @@ function rpcRouter(blockchain, mempool, config, logger = null) {
       durationMs: Date.now() - startedAt
     }, 'Transaction accepted');
     res.json({ status: 'queued', txid, message });
+  });
+
+  router.get('/metrics/transactions', validateQuery(transactionMetricsQuery), (req, res) => {
+    res.json(blockchain.getTransactionSeries(req.query.range));
   });
 
   return router;

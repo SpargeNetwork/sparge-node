@@ -286,6 +286,31 @@ function assertCode(result, code, label) {
   assert.strictEqual(okChain.getState().invariantStatus, 'ok', 'healthy chain status remains ok after mining');
   okStorage.close();
 
+  const producerDir = path.join(__dirname, 'out', 'test-observer-storage-producer');
+  const observerDir = path.join(__dirname, 'out', 'test-observer-storage-observer');
+  fs.rmSync(producerDir, { recursive: true, force: true });
+  fs.rmSync(observerDir, { recursive: true, force: true });
+  const producerStorage = new JsonStorage(producerDir, baseConfig());
+  const observerStorage = new JsonStorage(observerDir, baseConfig());
+  const producerChain = createBlockchain(baseConfig(), createMempool(baseConfig()), producerStorage, producerDir);
+  const observerChain = createBlockchain(baseConfig(), createMempool(baseConfig()), observerStorage, observerDir);
+  const producerBlock = producerChain.mineNextBlock();
+  const observerGenesisHash = observerChain.getState().latestHash;
+  const originalPutBlock = observerStorage.putBlock.bind(observerStorage);
+  observerStorage.putBlock = () => {
+    throw new Error('simulated concurrent storage conflict');
+  };
+  const failedApply = observerChain.applyExternalBlock(producerBlock);
+  assert.strictEqual(failedApply.ok, false, 'observer reports a failed block write');
+  assert.strictEqual(failedApply.code, 'STORAGE_WRITE_FAILED', 'observer reports the storage failure code');
+  assert.strictEqual(observerChain.getLatestHeight(), 0, 'failed storage write does not advance in-memory height');
+  assert.strictEqual(observerChain.getState().latestHash, observerGenesisHash, 'failed storage write does not advance in-memory hash');
+  observerStorage.putBlock = originalPutBlock;
+  assert.strictEqual(observerChain.applyExternalBlock(producerBlock).ok, true, 'observer can retry the same block after storage recovers');
+  assert.strictEqual(observerChain.getLatestHeight(), 1, 'successful retry advances observer height');
+  producerStorage.close();
+  observerStorage.close();
+
   console.log('invariant tests passed');
 })().catch((err) => {
   console.error(err);

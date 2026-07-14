@@ -14,7 +14,12 @@ const DEFAULT_RATE_LIMITS = {
   addressHistory: { windowSeconds: 60, maxRequestsPerIp: 30 },
   blockAndTxLookup: { windowSeconds: 60, maxRequestsPerIp: 60 },
   publicRead: { windowSeconds: 60, maxRequestsPerIp: 120 },
-  operator: { windowSeconds: 60, maxRequestsPerIp: 5 }
+  operator: { windowSeconds: 60, maxRequestsPerIp: 5 },
+  communityOAuth: { windowSeconds: 600, maxRequestsPerIp: 10 },
+  communityChallenge: { windowSeconds: 600, maxRequestsPerIp: 5 },
+  communityVerify: { windowSeconds: 600, maxRequestsPerIp: 10 },
+  communitySync: { windowSeconds: 3600, maxRequestsPerIp: 5 },
+  communityUnlink: { windowSeconds: 3600, maxRequestsPerIp: 5 }
 };
 
 let lastRateLimitLogAt = 0;
@@ -48,8 +53,8 @@ function createCorsMiddleware(config) {
 
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-CSRF-Token');
 
     if (req.method === 'OPTIONS') {
       res.sendStatus(204);

@@ -13,6 +13,14 @@ function toTimestamp(value) {
   return Number.isFinite(time) ? time : null;
 }
 
+function canonicalUnsignedInteger(value, field) {
+  const normalized = String(value);
+  if (!/^(0|[1-9][0-9]*)$/.test(normalized)) {
+    throw new Error(`Invalid ${field}: expected an unsigned integer.`);
+  }
+  return normalized;
+}
+
 class SqliteStorage {
   constructor(dataDir, config) {
     ensureDir(dataDir);
@@ -218,8 +226,8 @@ class SqliteStorage {
     historyRows.forEach((row) => {
       if (!ledger.balanceHistory[row.addr]) ledger.balanceHistory[row.addr] = [];
       ledger.balanceHistory[row.addr].push({
-        height: row.height,
-        balance: row.balanceMicro
+        height: row.height.toString(),
+        balanceMicro: row.balanceMicro
       });
     });
 
@@ -260,7 +268,16 @@ class SqliteStorage {
 
       Object.entries(ledger.balanceHistory || {}).forEach(([addr, history]) => {
         history.forEach((entry) => {
-          insertHistory.run(addr, Number(entry.height), String(entry.balance));
+          const height = canonicalUnsignedInteger(entry.height, 'balance history height');
+          const balance = canonicalUnsignedInteger(
+            entry.balanceMicro ?? entry.balance,
+            'balance history balance'
+          );
+          const numericHeight = Number(height);
+          if (!Number.isSafeInteger(numericHeight)) {
+            throw new Error('Invalid balance history height: exceeds safe integer range.');
+          }
+          insertHistory.run(addr, numericHeight, balance);
         });
       });
     });

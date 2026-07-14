@@ -7,37 +7,32 @@
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
   <link rel="stylesheet" href="/styles.css" />
+  <script src="/site-shell.js" defer></script>
 </head>
 <body class="observer observer-node">
-  <header class="observer-console-header">
-    <div class="observer-console-titleline">
-      <a class="brand observer-console-brand" href="/">
-        <img src="/assets/sparge_logo.png" alt="Sparge logo" class="logo-img" />
-        <div class="title">SPARGE OBSERVER NODE</div>
-      </a>
-      <div class="observer-inline-metrics">
-        <span class="observer-pill syncing" id="observerStatusBadge">SYNCING</span>
-        <span class="observer-metric">synced <strong id="observerSyncedHeight">0</strong></span>
-        <span class="observer-metric">producer <strong id="observerProducerHeight">-</strong></span>
-        <span class="observer-metric">lag <strong id="observerLagBlocks">0</strong></span>
-        <span class="observer-metric">url <strong id="observerProducerUrl">-</strong></span>
-      </div>
-    </div>
-    <nav class="observer-console-nav">
-      <a href="/" class="nav-link active">Node Dashboard</a>
-      <a href="#observerExplorerSection" class="nav-link">Explorer</a>
-      <a href="#blocks" class="nav-link">Blocks</a>
-      <a href="#transactions" class="nav-link">Transactions</a>
-      <a href="https://spargenetwork.github.io/sparge-docs/" class="nav-link" target="_blank" rel="noreferrer">Docs</a>
-    </nav>
-  </header>
+  <header class="site-header" data-site-header data-active-nav="explorer"></header>
 
-  <main class="observer-console-main">
+  <main class="page-container observer-console-main">
     <section class="observer-dashboard">
+      <div class="observer-local-toolbar">
+        <nav class="observer-console-nav" aria-label="Observer dashboard sections">
+          <a href="/" class="nav-link active">Node Dashboard</a>
+          <a href="#observerExplorerSection" class="nav-link">Explorer</a>
+          <a href="#blocks" class="nav-link">Blocks</a>
+          <a href="#transactions" class="nav-link">Transactions</a>
+        </nav>
+        <div class="observer-inline-metrics" aria-label="Observer sync summary">
+          <span class="observer-pill syncing" id="observerStatusBadge">SYNCING</span>
+          <span class="observer-metric">synced <strong id="observerSyncedHeight">0</strong></span>
+          <span class="observer-metric">producer <strong id="observerProducerHeight">-</strong></span>
+          <span class="observer-metric">lag <strong id="observerLagBlocks">0</strong></span>
+          <span class="observer-metric">url <strong id="observerProducerUrl">-</strong></span>
+        </div>
+      </div>
       <div class="observer-dashboard-head">
         <div>
           <p class="eyebrow">Observer dashboard</p>
-          <h1>Local Observer Status</h1>
+          <h1 class="page-title">Local Observer Status</h1>
           <p class="network-note">This app syncs and validates Sparge Chain locally. It does not produce blocks and cannot modify chain state.</p>
         </div>
         <div class="observer-actions">
@@ -97,6 +92,16 @@
           </div>
         </details>
       </div>
+      <div class="observer-node-state">
+        <div class="observer-pane-title">Community Identity</div>
+        <div class="wallet-details">
+          <div class="detail-row"><span>Discord</span><strong>Open in browser</strong></div>
+          <div class="detail-row"><span>Observer verification</span><span>Manual</span></div>
+        </div>
+        <p class="network-note">Wallet verification and Discord OAuth run on the central Sparge identity page. This app never receives your wallet key or Discord token.</p>
+        <button class="btn ghost" id="observerCommunityBtn" type="button">Open Identity Page</button>
+        <div class="status" id="observerCommunityStatus"></div>
+      </div>
       <details class="observer-log-pane observer-diagnostics">
         <summary class="observer-pane-title">Diagnostics</summary>
         <pre class="observer-log-feed" id="observerLogFeed"></pre>
@@ -143,7 +148,7 @@
                 <th>Reward</th>
               </tr>
             </thead>
-            <tbody id="blocksTable"></tbody>
+            <tbody id="blocksTable" data-show-rewards="true"></tbody>
           </table>
         </div>
         <div class="panel-footer" id="pagerBottom"></div>
@@ -166,6 +171,8 @@
     </section>
   </main>
 
+  <script src="/explorer-tx.js"></script>
+  <script src="/participant-ui.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

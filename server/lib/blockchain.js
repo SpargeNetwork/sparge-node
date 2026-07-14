@@ -3,8 +3,15 @@ const crypto = require('crypto');
 const { toBaseUnits, formatTokens } = require('./units');
 const { getBalanceUnits, setBalanceUnits, setStakeUnits, getNonce, setNonce } = require('./ledger');
 const { ensureGenesis } = require('./genesis');
-const { ACTIVE_WINDOW_BLOCKS, MAX_SPONSORED_PARTICIPANTS, PARTICIPANT_BOND_MICRO } = require('./participants');
 const { calculateStateRoot, runFullInvariantAudit, runFastBlockInvariant } = require('./invariants');
+const { buildTransactionSeries, recentUserTransactions } = require('./transactionMetrics');
+const { getSoftwareVersion } = require('./softwareVersion');
+const {
+  normalizeParticipationConfig,
+  normalizeParticipantRewardRamp,
+  participantMaturity,
+  calculateMaturedParticipantRewards
+} = require('./participantRewards');
 
 const MICRO = 1_000_000n;
 const PPM = 1_000_000n;
@@ -70,6 +77,9 @@ function createBlockchain(config, mempool, storage, dataDirOverride, logger = nu
   const genesisFreeBlocks = Number(genesis.genesisFreeBlocks ?? config.mining?.genesisFreeBlocks ?? 100);
   const nodePoolAddress = config.rewards?.nodePoolAddress || 'NODE_POOL';
   const holderPoolAddress = config.rewards?.holderPoolAddress || 'HOLDER_POOL';
+  const participantRewardRamp = normalizeParticipantRewardRamp(config);
+  const participationConfig = normalizeParticipationConfig(config);
+  const activeWindowBlocks = participationConfig.activeWindowBlocks;
 
   const decimals = config.token.decimals;
   const initialSupplyUnits = toBaseUnits(config.token.initialSupplyTokens, decimals);
@@ -253,7 +263,8 @@ function createBlockchain(config, mempool, storage, dataDirOverride, logger = nu
   function getState() {
     const blocks = storage.getAllBlocks();
     const latest = blocks.length ? blocks[blocks.length - 1] : null;
-    const stats = computeChainStats(blocks, decimals);
+    const stats = computeChainStats(blocks, decimals, Date.now());
+    const circulatingSupplyUnits = calculateCirculatingSupplyUnits(ledger, [nodePoolAddress, holderPoolAddress]);
     const addressSet = new Set(stats.addresses || []);
     Object.keys(ledger.balances || {}).forEach((addr) => addressSet.add(addr));
     if (config.rewards?.treasuryAddress) addressSet.add(config.rewards.treasuryAddress);
@@ -261,7 +272,7 @@ function createBlockchain(config, mempool, storage, dataDirOverride, logger = nu
     if (nodePoolAddress) addressSet.add(nodePoolAddress);
     if (holderPoolAddress) addressSet.add(holderPoolAddress);
     const height = BigInt(meta.latestHeight || 0);
-    const activeParticipants = getActiveParticipants(ledger, height, ACTIVE_WINDOW_BLOCKS);
+    const activeParticipants = getActiveParticipants(ledger, height, activeWindowBlocks);
     const totalRegisteredParticipants = Object.keys(ledger.participants || {}).length;
     const lastPayoutHeight = BigInt(meta.lastPayoutHeight || 0);
     const sincePayout = height >= lastPayoutHeight ? height - lastPayoutHeight : 0n;
@@ -289,6 +300,7 @@ function createBlockchain(config, mempool, storage, dataDirOverride, logger = nu
       };
     return {
       chainId: config.chain.chainId,
+      softwareVersion: getSoftwareVersion(config),
       protocolVersion: config.chain.protocolVersion,
       economicsVersion: config.chain.economicsVersion,
       genesisHash,
@@ -308,6 +320,10 @@ function createBlockchain(config, mempool, storage, dataDirOverride, logger = nu
       totalMintedTokens: formatTokens(BigInt(meta.totalMintedUnits), decimals),
       totalSupplyMicro: meta.totalSupplyUnits,
       totalMintedMicro: meta.totalMintedUnits,
+      circulatingSupplyTokens: formatTokens(circulatingSupplyUnits, decimals),
+      circulatingSupplyMicro: circulatingSupplyUnits.toString(),
+      minted24hTokens: formatTokens(stats.minted24hMicro, decimals),
+      minted24hMicro: stats.minted24hMicro.toString(),
       latestHeight: meta.latestHeight,
       latestHash: meta.latestHash,
       latestBlock: latest
@@ -329,7 +345,18 @@ function createBlockchain(config, mempool, storage, dataDirOverride, logger = nu
       },
       activeParticipantCount: activeParticipants.length,
       totalRegisteredParticipants,
-      ACTIVE_WINDOW_BLOCKS,
+      ACTIVE_WINDOW_BLOCKS: activeWindowBlocks,
+      participantBondMicro: participationConfig.bondMicro,
+      maxSponsoredParticipants: participationConfig.maxSponsoredParticipants,
+      participantRewardRamp: {
+        enabled: participantRewardRamp.enabled,
+        activationHeight: participantRewardRamp.activationHeight,
+        stages: participantRewardRamp.stages.map((stage) => ({
+          blocks: stage.blocks,
+          multiplierBps: stage.multiplierBps,
+          multiplierPercent: stage.multiplierBps / 100
+        }))
+      },
       avgWindowBlocks: Number(blocksPer14Days),
       avgWindowDays: 14,
       avgEligibilityMicro: (1000n * MICRO).toString(),
@@ -395,7 +422,8 @@ function createBlockchain(config, mempool, storage, dataDirOverride, logger = nu
       genesisOperatorAddress,
       genesisFreeBlocks,
       BigInt(height),
-      blocksPer14Days
+      blocksPer14Days,
+      participationConfig
     );
 
     const mintContext = mintAndDistribute(
@@ -629,7 +657,8 @@ function createBlockchain(config, mempool, storage, dataDirOverride, logger = nu
       genesisOperatorAddress,
       genesisFreeBlocks,
       height,
-      blocksPer14Days
+      blocksPer14Days,
+      participationConfig
     );
     if (applied.length !== userTxs.length) {
       return { ok: false, error: 'user tx validation failed' };
@@ -735,9 +764,24 @@ function createBlockchain(config, mempool, storage, dataDirOverride, logger = nu
       markInvariantSuccess(fast, 'fast');
     }
 
+    try {
+      storage.putBlock(block, tempMeta, tempLedger);
+    } catch (err) {
+      if (logger) logger.error('observer_block_storage_failed', {
+        operation: 'observer_sync',
+        blockHeight: block.height,
+        errorCode: 'STORAGE_WRITE_FAILED',
+        error: err
+      }, 'Validated observer block could not be stored');
+      return {
+        ok: false,
+        error: 'observer block storage failed',
+        code: 'STORAGE_WRITE_FAILED',
+        height: block.height
+      };
+    }
     ledger = tempLedger;
     meta = tempMeta;
-    storage.putBlock(block, meta, ledger);
     if (invariantConfig.enabled) {
       const audit = runFullAudit('observer_apply');
       if (!audit.ok) {
@@ -778,6 +822,13 @@ function createBlockchain(config, mempool, storage, dataDirOverride, logger = nu
     },
     getBlocks,
     getBlocksFromHeight,
+    getTransactionSeries(range) {
+      const allBlocks = storage.getAllBlocks();
+      return {
+        ...buildTransactionSeries(allBlocks, range),
+        recentTransactions: recentUserTransactions(allBlocks, 5)
+      };
+    },
     getLatestHeight,
     setSyncStatus,
     applyExternalBlock,
@@ -797,7 +848,7 @@ function createBlockchain(config, mempool, storage, dataDirOverride, logger = nu
       return storage.getTxById(txid);
     },
     getAddressStats(address) {
-      const summary = storage.getAddressSummary(address, ACTIVE_WINDOW_BLOCKS) || {};
+      const summary = storage.getAddressSummary(address, activeWindowBlocks) || {};
       const balance = getBalanceUnits(ledger, address).toString();
       const nonce = getNonce(ledger, address).toString();
       const height = BigInt(meta.latestHeight || 0);
@@ -806,6 +857,44 @@ function createBlockchain(config, mempool, storage, dataDirOverride, logger = nu
       const history = ledger.balanceHistory?.[address] || [];
       const avgBalance = computeAverageBalance(history, BigInt(balance || '0'), startHeight, height);
       const avgEligible = avgBalance >= 1000n * MICRO;
+      const activeParticipants = new Set(getActiveParticipants(ledger, height, activeWindowBlocks));
+      const participantState = ledger.participants?.[address] || null;
+      let participant = null;
+      if (participantState) {
+        const maturity = participantMaturity(participantState, height, participantRewardRamp);
+        participant = {
+          ...(summary.participant || participantState),
+          status: activeParticipants.has(address) ? 'active' : 'inactive',
+          registeredHeight: String(participantState.registeredHeight || '0'),
+          activeSinceHeight: String(participantState.registeredHeight || '0'),
+          rewardMaturityPercent: maturity.multiplierPercent,
+          rewardMaturityMultiplierBps: maturity.multiplierBps,
+          rewardMaturityStage: maturity.stage,
+          maturityAgeBlocks: maturity.ageBlocks.toString(),
+          blocksUntilNextMaturityStage: maturity.blocksUntilNextStage,
+          rewardRampActive: maturity.rampActive
+        };
+      }
+      const sponsored = Object.entries(ledger.participants || {})
+        .filter(([, record]) => record.sponsor === address);
+      const sponsoredActiveCount = sponsored.filter(([participantAddress]) => activeParticipants.has(participantAddress)).length;
+      const sponsoredInactiveCount = sponsored.length - sponsoredActiveCount;
+      const lockedBondMicro = sponsored.reduce((sum, [, record]) => sum + BigInt(record.bondMicro || '0'), 0n);
+      const sponsoredParticipants = sponsored.map(([participantAddress, record]) => {
+        const maturity = participantMaturity(record, height, participantRewardRamp);
+        return {
+          address: participantAddress,
+          status: activeParticipants.has(participantAddress) ? 'active' : 'inactive',
+          bondMicro: String(record.bondMicro || '0'),
+          registeredHeight: String(record.registeredHeight || '0'),
+          lastSeenHeight: String(record.lastSeenHeight || '0'),
+          rewardMaturityPercent: maturity.multiplierPercent,
+          rewardMaturityMultiplierBps: maturity.multiplierBps,
+          rewardMaturityStage: maturity.stage,
+          blocksUntilNextMaturityStage: maturity.blocksUntilNextStage,
+          rewardRampActive: maturity.rampActive
+        };
+      }).sort((a, b) => a.address.localeCompare(b.address));
       return {
         address,
         balanceMicro: balance,
@@ -817,8 +906,13 @@ function createBlockchain(config, mempool, storage, dataDirOverride, logger = nu
         lastSeenHeight: summary.lastSeenHeight ?? null,
         firstSeen: summary.firstSeen ?? null,
         lastSeen: summary.lastSeen ?? null,
-        participant: summary.participant ?? null,
-        sponsoredActiveCount: summary.sponsoredActiveCount ?? 0
+        participant,
+        sponsoredActiveCount,
+        sponsoredInactiveCount,
+        availableSponsorSlots: Math.max(0, participationConfig.maxSponsoredParticipants - sponsoredActiveCount),
+        lockedBondMicro: lockedBondMicro.toString(),
+        reclaimableBondMicro: null,
+        sponsoredParticipants
       };
     },
     getAddressTxs(address, limit = 50) {
@@ -839,7 +933,7 @@ function createBlockchain(config, mempool, storage, dataDirOverride, logger = nu
     },
     getSponsorActiveCount(sponsor) {
       const height = BigInt(meta.latestHeight || 0);
-      const active = getActiveParticipants(ledger, height, ACTIVE_WINDOW_BLOCKS);
+      const active = getActiveParticipants(ledger, height, activeWindowBlocks);
       return active.filter((address) => {
         const record = ledger.participants?.[address];
         return record && record.sponsor === sponsor;
@@ -891,8 +985,9 @@ function mintAndDistribute(height, timestamp, config, meta, ledger, blocksPerYea
     participantUnits,
     treasuryAddress,
     BigInt(height),
-    ACTIVE_WINDOW_BLOCKS,
-    blocksPer14Days
+    config.economics.participation.activeWindowBlocks,
+    blocksPer14Days,
+    config.economics?.participantRewardRamp
   );
   treasuryUnits += participantPayout.treasuryRemainder;
 
@@ -1167,7 +1262,10 @@ function getRatePpm(height, blocksPerYear) {
 function recordBalanceHistory(ledger, address, balance, height, windowBlocks) {
   if (!address || height === undefined || height === null) return;
   if (!ledger.balanceHistory) ledger.balanceHistory = {};
-  const history = ledger.balanceHistory[address] || [];
+  const history = (ledger.balanceHistory[address] || []).map((entry) => ({
+    height: String(entry.height ?? '0'),
+    balanceMicro: String(entry.balanceMicro ?? entry.balance ?? '0')
+  }));
   const heightStr = height.toString();
   const balanceStr = balance.toString();
   if (history.length && history[history.length - 1].height === heightStr) {
@@ -1273,22 +1371,21 @@ function getActiveParticipants(ledger, height, activeWindow) {
     .sort((a, b) => a.localeCompare(b));
 }
 
-function distributeParticipants(ledger, participantUnits, treasuryAddress, height, activeWindow, avgWindowBlocks) {
+function distributeParticipants(ledger, participantUnits, treasuryAddress, height, activeWindow, avgWindowBlocks, rewardRamp) {
   const active = getActiveParticipants(ledger, height, activeWindow);
-
-  if (!active.length) {
-    return { activeCount: 0, rewards: [], participantShareUnits: participantUnits, treasuryRemainder: participantUnits };
-  }
-
-  const count = BigInt(active.length);
-  const share = participantUnits / count;
-  const remainder = participantUnits - share * count;
+  const payout = calculateMaturedParticipantRewards({
+    participantUnits,
+    activeAddresses: active,
+    participants: ledger.participants || {},
+    height,
+    ramp: rewardRamp
+  });
   const rewards = [];
 
-  for (const address of active) {
-    if (share > 0n) {
-      creditBalance(ledger, address, share, height, avgWindowBlocks);
-      rewards.push({ address, amount: share });
+  for (const reward of payout.rewards) {
+    if (reward.amount > 0n) {
+      creditBalance(ledger, reward.address, reward.amount, height, avgWindowBlocks);
+      rewards.push({ address: reward.address, amount: reward.amount });
     }
   }
 
@@ -1296,7 +1393,7 @@ function distributeParticipants(ledger, participantUnits, treasuryAddress, heigh
     activeCount: active.length,
     rewards,
     participantShareUnits: participantUnits,
-    treasuryRemainder: remainder
+    treasuryRemainder: payout.treasuryRemainder
   };
 }
 
@@ -1411,7 +1508,7 @@ function selectMempoolTxs(mempool, ledger, limitCount) {
   return selected;
 }
 
-function applyUserTxs(txs, ledger, meta, feeRecipient, genesisOperatorAddress, genesisFreeBlocks, height, avgWindowBlocks) {
+function applyUserTxs(txs, ledger, meta, feeRecipient, genesisOperatorAddress, genesisFreeBlocks, height, avgWindowBlocks, participationConfig) {
   const applied = [];
   const cachedNonce = new Map();
   const cachedBalance = new Map();
@@ -1450,7 +1547,7 @@ function applyUserTxs(txs, ledger, meta, feeRecipient, genesisOperatorAddress, g
         bondMicro = 0n;
         isGenesisFree = true;
       } else {
-        bondMicro = PARTICIPANT_BOND_MICRO;
+        bondMicro = BigInt(participationConfig.bondMicro);
       }
     }
     total += bondMicro;
@@ -1475,12 +1572,12 @@ function applyUserTxs(txs, ledger, meta, feeRecipient, genesisOperatorAddress, g
       if (!participant) continue;
       if (isGenesisFree && participant !== signer) continue;
       if (ledger.participants?.[participant]) continue;
-      const active = getActiveParticipants(ledger, height, ACTIVE_WINDOW_BLOCKS);
+      const active = getActiveParticipants(ledger, height, participationConfig.activeWindowBlocks);
       const sponsorActive = active.filter((addr) => {
         const record = ledger.participants?.[addr];
         return record && record.sponsor === signer;
       }).length;
-      if (sponsorActive >= MAX_SPONSORED_PARTICIPANTS) continue;
+      if (sponsorActive >= participationConfig.maxSponsoredParticipants) continue;
       if (!ledger.participants) ledger.participants = {};
       ledger.participants[participant] = {
         sponsor: signer,
@@ -1574,12 +1671,18 @@ function calculateNextBaseFee(prevBaseFee, gasUsed, gasTarget, changeDenominator
   return next < minBaseFee ? minBaseFee : next;
 }
 
-function computeChainStats(blocks, decimals) {
+function computeChainStats(blocks, decimals, now = Date.now()) {
   let totalTransactions = 0;
   let totalFeesMicro = 0n;
+  let minted24hMicro = 0n;
   const addresses = new Set();
+  const cutoff = now - (24 * 60 * 60 * 1000);
 
   for (const block of blocks) {
+    const timestamp = new Date(block.timestamp).getTime();
+    if (Number.isFinite(timestamp) && timestamp >= cutoff && timestamp <= now) {
+      minted24hMicro += BigInt(block.mintUnits ?? block.payload?.mintUnits ?? '0');
+    }
     const txs = getBlockTransactions(block);
     totalTransactions += txs.length;
     for (const tx of txs) {
@@ -1596,9 +1699,19 @@ function computeChainStats(blocks, decimals) {
   return {
     totalTransactions,
     averageFeeMicro,
+    minted24hMicro,
     totalAddresses: addresses.size,
     addresses: Array.from(addresses)
   };
+}
+
+function calculateCirculatingSupplyUnits(ledger, excludedAddresses = []) {
+  const excluded = new Set(excludedAddresses.filter(Boolean));
+  return Object.entries(ledger?.balances || {}).reduce((total, [address, raw]) => {
+    if (excluded.has(address)) return total;
+    const value = BigInt(raw || '0');
+    return value > 0n ? total + value : total;
+  }, 0n);
 }
 
 function validateGenesis(config, genesis, genesisHash, blocks) {
@@ -1631,4 +1744,4 @@ function validateGenesis(config, genesis, genesisHash, blocks) {
   }
 }
 
-module.exports = { createBlockchain };
+module.exports = { createBlockchain, computeChainStats, calculateCirculatingSupplyUnits };

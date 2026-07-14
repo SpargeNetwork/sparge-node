@@ -7,29 +7,17 @@
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
   <link rel="stylesheet" href="/styles.css" />
+  <script src="/site-shell.js" defer></script>
 </head>
 <body class="observer">
-  <header class="hero">
-    <a class="brand" href="/">
-      <img src="/assets/sparge_logo.png" alt="Sparge logo" class="logo-img" />
-      <div class="title">Sparge</div>
-      <span class="observer-badge">Observer Node</span>
-    </a>
-    <nav class="top-nav">
-      <a href="/" class="nav-link active">Explorer</a>
-      <a href="/#blocks" class="nav-link">Blocks</a>
-      <a href="/#transactions" class="nav-link">Transactions</a>
-      <a href="/#addresses" class="nav-link">Addresses</a>
-    </nav>
-    <div class="header-actions"></div>
-  </header>
+  <header class="site-header" data-site-header data-active-nav="explorer"></header>
 
-  <main>
+  <main class="page-container">
     <section class="panel" id="addressPage">
       <div class="panel-header">
         <div>
           <a class="back-link" href="/">Back to Explorer</a>
-          <h2>Address</h2>
+          <h1 class="page-title">Address</h1>
         </div>
       </div>
 
@@ -70,6 +58,8 @@
     </section>
   </main>
 
+  <script src="/explorer-tx.js"></script>
+  <script src="/participant-ui.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

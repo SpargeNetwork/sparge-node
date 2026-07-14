@@ -7,38 +7,20 @@
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
   <link rel="stylesheet" href="/styles.css" />
+  <script src="/site-shell.js" defer></script>
 </head>
 <body>
-  <header class="hero">
-    <a class="brand" href="/">
-      <img src="/assets/sparge_logo.png" alt="Sparge logo" class="logo-img" />
-      <div class="title">Sparge</div>
-    </a>
-    <nav class="top-nav">
-      <a href="/" class="nav-link active">Explorer</a>
-      <a href="/network" class="nav-link">Network</a>
-      <a href="/wallet" class="nav-link">Wallet</a>
-      <a href="https://spargenetwork.github.io/sparge-docs/" class="nav-link" target="_blank" rel="noreferrer">Docs</a>
-    </nav>
-    <div class="header-actions">
-      <div class="toggle">
-        <button id="viewBasic" class="btn chip active">Basic</button>
-        <button id="viewAdvanced" class="btn chip">Advanced / Protocol</button>
-      </div>
-    </div>
-  </header>
+  <header class="site-header" data-site-header data-active-nav="explorer"></header>
 
-  <main>
-    <section class="network-overview explorer-priority" id="networkOverviewSection">
+  <main class="page-container">
+    <section class="explorer-overview">
       <div class="panel-header">
         <div>
-          <p class="eyebrow">Live network</p>
-          <h1>Sparge Chain Explorer</h1>
+          <p class="eyebrow">Live chain activity</p>
+          <h1 class="page-title">Sparge Chain Explorer</h1>
         </div>
-        <a class="nav-link" href="/network">Observer Nodes</a>
       </div>
-      <p class="network-note">Sparge Chain currently uses one official producer. Observer nodes independently sync and validate the chain state.</p>
-      <div class="network-grid priority-grid" id="networkOverviewPanel"></div>
+      <div class="homepage-stats" id="homepageStats"></div>
     </section>
 
     <section class="search-panel">
@@ -48,18 +30,34 @@
       </form>
     </section>
 
-    <section class="info-panels compact-panels">
-      <div class="info-panel">
-        <div class="panel-title">Chain Status</div>
-        <div class="panel-body" id="statusPanel"></div>
-      </div>
-      <div class="info-panel">
-        <div class="panel-title">Genesis</div>
-        <div class="panel-body" id="genesisPanel"></div>
-      </div>
-    </section>
+    <section class="explorer-activity-grid">
+      <section class="panel activity-panel">
+        <div class="panel-header">
+          <h2>Latest Transactions</h2>
+        </div>
+        <div class="latest-transactions" id="latestTransactionsPanel"></div>
+      </section>
 
-    <section class="stats" id="chainStats"></section>
+      <section class="panel activity-panel transaction-chart-panel">
+        <div class="panel-header chart-header">
+          <div>
+            <h2>Transactions</h2>
+            <p class="panel-caption">Transactions over time</p>
+          </div>
+          <div class="chart-range-tabs" id="transactionChartRanges" role="group" aria-label="Transaction chart range">
+            <button type="button" data-chart-range="24h" class="active">24 Hours</button>
+            <button type="button" data-chart-range="7d">7 Days</button>
+            <button type="button" data-chart-range="30d">30 Days</button>
+            <button type="button" data-chart-range="all">All Time</button>
+          </div>
+        </div>
+        <div class="transaction-chart" id="transactionChart" aria-live="polite">
+          <canvas id="transactionChartCanvas" role="img" aria-label="Transaction count over time"></canvas>
+          <div class="chart-tooltip" id="transactionChartTooltip" hidden></div>
+          <div class="chart-empty" id="transactionChartEmpty">Loading transaction activity...</div>
+        </div>
+      </section>
+    </section>
 
     <section class="panel">
       <div class="panel-header">
@@ -76,7 +74,6 @@
               <th>Hash</th>
               <th>Prev hash</th>
               <th>State root</th>
-              <th>Reward</th>
             </tr>
           </thead>
           <tbody id="blocksTable"></tbody>
@@ -87,6 +84,9 @@
 
   </main>
 
+  <script src="/explorer-tx.js"></script>
+  <script src="/participant-ui.js"></script>
+  <script src="/transaction-chart.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

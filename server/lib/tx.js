@@ -102,16 +102,25 @@ function getKeyObjectsFromPrivateHex(privateKeyHex, publicKeyHex) {
 
 function signMessage(tx, privateKeyHex) {
   const message = buildMessage(tx);
-  const digest = sha256Bytes(Buffer.from(message, 'utf8'));
-  const key = getKeyObjectsFromPrivateHex(privateKeyHex, tx.publicKeyHex);
-  return crypto.sign(null, digest, key).toString('hex');
+  return signCanonicalMessage(message, privateKeyHex, tx.publicKeyHex);
 }
 
 function verifySignature(tx) {
   const message = buildMessage(tx);
+  return verifyCanonicalMessage(message, tx.publicKeyHex, tx.signatureHex);
+}
+
+function signCanonicalMessage(message, privateKeyHex, publicKeyHex) {
   const digest = sha256Bytes(Buffer.from(message, 'utf8'));
-  const signatureBytes = Buffer.from(tx.signatureHex, 'hex');
-  const key = getKeyObjectsFromPublicHex(tx.publicKeyHex);
+  const key = getKeyObjectsFromPrivateHex(privateKeyHex, publicKeyHex);
+  return crypto.sign(null, digest, key).toString('hex');
+}
+
+function verifyCanonicalMessage(message, publicKeyHex, signatureHex) {
+  if (!isHex(signatureHex, 128)) return false;
+  const digest = sha256Bytes(Buffer.from(message, 'utf8'));
+  const signatureBytes = Buffer.from(signatureHex, 'hex');
+  const key = getKeyObjectsFromPublicHex(publicKeyHex);
   return crypto.verify(null, digest, key, signatureBytes);
 }
 
@@ -146,6 +155,8 @@ module.exports = {
   createTxId,
   signMessage,
   verifySignature,
+  signCanonicalMessage,
+  verifyCanonicalMessage,
   getKeyObjectsFromPublicHex,
   getKeyObjectsFromPrivateHex,
   normalizeTxInput
