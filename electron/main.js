@@ -4,6 +4,7 @@ const os = require('os');
 const { spawn } = require('child_process');
 const electronUpdater = require('electron-updater');
 const { createUpdateManager } = require('./updateManager');
+const { verifyObserverUrl, verifySetupUrl } = require('./localEndpoint');
 const {
   app,
   BrowserWindow,
@@ -22,6 +23,13 @@ let backendReadyResolved = false;
 let tray = null;
 let isQuitting = false;
 let updateManager = null;
+
+function getAppIconPath() {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'observer-runtime', 'public', 'assets', 'observer-node.png');
+  }
+  return path.join(__dirname, '..', 'public', 'assets', 'observer-node.png');
+}
 
 function getObserverPaths() {
   const baseDir = path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'SpargeObserver');
@@ -119,28 +127,15 @@ function parseMarker(line) {
   return null;
 }
 
-function waitForStatus(baseUrl, timeoutMs = 15000) {
+function waitForObserver(baseUrl, timeoutMs = 15000) {
   const started = Date.now();
   return new Promise((resolve, reject) => {
-    const check = () => {
-      const req = require('http').request(
-        `${baseUrl.replace(/\/$/, '')}/api/status`,
-        { method: 'GET', timeout: 2000 },
-        (res) => {
-          let body = '';
-          res.on('data', (chunk) => (body += chunk));
-          res.on('end', () => {
-            if (res.statusCode >= 200 && res.statusCode < 300) {
-              resolve();
-              return;
-            }
-            retry();
-          });
-        }
-      );
-      req.on('error', retry);
-      req.on('timeout', () => req.destroy());
-      req.end();
+    const check = async () => {
+      try {
+        resolve(await verifyObserverUrl(baseUrl, 2000));
+      } catch {
+        retry();
+      }
     };
 
     const retry = () => {
@@ -155,19 +150,11 @@ function waitForStatus(baseUrl, timeoutMs = 15000) {
   });
 }
 
-function isHttpReachable(url, timeoutMs = 1200) {
-  return new Promise((resolve) => {
-    const req = require('http').request(url, { method: 'GET', timeout: timeoutMs }, (res) => {
-      res.resume();
-      resolve(res.statusCode >= 200 && res.statusCode < 500);
-    });
-    req.on('error', () => resolve(false));
-    req.on('timeout', () => {
-      req.destroy();
-      resolve(false);
-    });
-    req.end();
-  });
+function loadStartupFailure() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const html = '<main style="font-family:Segoe UI,sans-serif;max-width:620px;margin:15vh auto;padding:24px;color:#e7f4ef">' +
+    '<h2>Observer could not start</h2><p style="color:#9fbab2">Close the app and open it again. If the problem continues, use Observer &gt; Open Logs Folder.</p></main>';
+  mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
 }
 
 function createWindow() {
@@ -177,7 +164,7 @@ function createWindow() {
     minWidth: 1100,
     minHeight: 700,
     title: 'Sparge Observer',
-    icon: path.join(__dirname, '..', 'public', 'assets', 'sparge_logo.png'),
+    icon: getAppIconPath(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -225,8 +212,7 @@ function communityIdentityUrl() {
 
 function ensureTray() {
   if (tray) return;
-  const iconPath = path.join(__dirname, '..', 'public', 'assets', 'sparge_logo.png');
-  tray = new Tray(iconPath);
+  tray = new Tray(getAppIconPath());
   tray.setToolTip('Sparge Observer');
   tray.setContextMenu(Menu.buildFromTemplate([
     {
@@ -323,18 +309,23 @@ function startBackend() {
     const marker = parseMarker(line);
     if (!marker || !mainWindow) return;
     if (marker.type === 'setup') {
-      backendReadyResolved = true;
-      mainWindow.loadURL(marker.url);
+      try {
+        const setupTarget = await verifySetupUrl(marker.url);
+        backendReadyResolved = true;
+        mainWindow.loadURL(setupTarget);
+      } catch {
+        // The fallback poller keeps waiting for the real setup service.
+      }
       return;
     }
     if (marker.type === 'app') {
       try {
-        await waitForStatus(marker.url);
+        const observerTarget = await waitForObserver(marker.url);
+        backendReadyResolved = true;
+        mainWindow.loadURL(observerTarget);
       } catch {
-        // If status polling fails, still try loading the UI URL.
+        loadStartupFailure();
       }
-      backendReadyResolved = true;
-      mainWindow.loadURL(marker.url);
     }
   };
 
@@ -343,16 +334,22 @@ function startBackend() {
       clearInterval(fallbackPoller);
       return;
     }
-    if (await isHttpReachable(`${appBaseUrl}/api/status`)) {
+    try {
+      const observerTarget = await verifyObserverUrl(appBaseUrl, 1200);
       backendReadyResolved = true;
-      mainWindow.loadURL(`${appBaseUrl}/`);
+      mainWindow.loadURL(observerTarget);
       clearInterval(fallbackPoller);
       return;
+    } catch {
+      // Not the observer process started by this shell.
     }
-    if (await isHttpReachable(setupUrl)) {
+    try {
+      const setupTarget = await verifySetupUrl(setupUrl, 1200);
       backendReadyResolved = true;
-      mainWindow.loadURL(setupUrl);
+      mainWindow.loadURL(setupTarget);
       clearInterval(fallbackPoller);
+    } catch {
+      // Keep waiting for a verified local service.
     }
   }, 1000);
 
@@ -376,7 +373,11 @@ function startBackend() {
         setTimeout(launch, 250);
         return;
       }
-      throw err;
+      loadStartupFailure();
+    });
+
+    backendProcess.on('exit', (code) => {
+      if (!isQuitting && !backendReadyResolved && code !== 0) loadStartupFailure();
     });
 
     backendProcess.stdout.setEncoding('utf8');
@@ -456,7 +457,19 @@ ipcMain.handle('observer:checkForUpdates', () => updateManager?.check(true));
 ipcMain.handle('observer:downloadUpdate', () => updateManager?.download());
 ipcMain.handle('observer:installUpdate', () => updateManager?.install() || false);
 
-app.whenReady().then(() => {
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  });
+}
+
+if (hasSingleInstanceLock) app.whenReady().then(() => {
   writeShellSettings(readShellSettings());
   if (readShellSettings().minimizeToTray) ensureTray();
   createWindow();

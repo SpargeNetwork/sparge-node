@@ -3,7 +3,7 @@ const path = require('path');
 const pngToIco = require('png-to-ico');
 
 async function main() {
-  const src = path.join(__dirname, '..', 'public', 'assets', 'sparge_logo.png');
+  const src = path.join(__dirname, '..', 'public', 'assets', 'observer-node.png');
   const outDir = path.join(__dirname, '..', 'build');
   const dest = path.join(outDir, 'icon.ico');
 

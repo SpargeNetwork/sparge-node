@@ -2,7 +2,11 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const { EventEmitter } = require('events');
+const http = require('http');
+const net = require('net');
 const { createUpdateManager } = require('../electron/updateManager');
+const { parseLoopbackUrl, verifyObserverUrl, verifySetupUrl } = require('../electron/localEndpoint');
+const { findAvailablePort } = require('../launcher');
 
 class FakeUpdater extends EventEmitter {
   async checkForUpdates() { this.emit('checking-for-update'); }
@@ -59,6 +63,48 @@ async function main() {
   for (const channel of ['observer:checkForUpdates', 'observer:downloadUpdate', 'observer:installUpdate']) {
     assert.ok(preload.includes(channel));
   }
+
+  const mainSource = fs.readFileSync(path.join(root, 'electron', 'main.js'), 'utf8');
+  const iconSource = fs.readFileSync(path.join(root, 'scripts', 'generate-icon.js'), 'utf8');
+  assert.ok(mainSource.includes("assets', 'observer-node.png'"), 'desktop and tray use observer icon');
+  assert.ok(mainSource.includes("process.resourcesPath, 'observer-runtime'"), 'packaged app loads its bundled observer icon');
+  assert.ok(iconSource.includes("assets', 'observer-node.png'"), 'installer uses observer icon');
+  assert.throws(() => parseLoopbackUrl('https://example.com/'), /loopback/);
+
+  const server = http.createServer((req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    if (req.url === '/api/status') {
+      res.end(JSON.stringify({ nodeMode: 'observer' }));
+      return;
+    }
+    if (req.url === '/setup/defaults') {
+      res.end(JSON.stringify({ producerUrl: 'http://localhost:3051', port: 3052 }));
+      return;
+    }
+    res.statusCode = 404;
+    res.end(JSON.stringify({ error: 'Not found' }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const localUrl = `http://127.0.0.1:${server.address().port}/wrong-route`;
+  assert.strictEqual(await verifyObserverUrl(localUrl), `http://127.0.0.1:${server.address().port}/`);
+  assert.strictEqual(await verifySetupUrl(localUrl), `http://127.0.0.1:${server.address().port}/setup`);
+  await new Promise((resolve) => server.close(resolve));
+
+  const notFoundServer = http.createServer((_req, res) => {
+    res.statusCode = 404;
+    res.end('Not found');
+  });
+  await new Promise((resolve) => notFoundServer.listen(0, '127.0.0.1', resolve));
+  const notFoundUrl = `http://127.0.0.1:${notFoundServer.address().port}/`;
+  await assert.rejects(() => verifyObserverUrl(notFoundUrl), /HTTP 404/);
+  await assert.rejects(() => verifySetupUrl(notFoundUrl), /HTTP 404/);
+  await new Promise((resolve) => notFoundServer.close(resolve));
+
+  const occupied = net.createServer();
+  await new Promise((resolve) => occupied.listen(0, resolve));
+  const occupiedPort = occupied.address().port;
+  assert.notStrictEqual(await findAvailablePort(occupiedPort), occupiedPort, 'wildcard port conflicts select another port');
+  await new Promise((resolve) => occupied.close(resolve));
   console.log('Observer updater tests passed.');
 }
 

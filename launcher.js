@@ -207,7 +207,8 @@ function findAvailablePort(startPort) {
       const server = net.createServer();
       server.unref();
       server.on('error', () => tryPort(port + 1));
-      server.listen(port, '127.0.0.1', () => {
+      // Match Express' wildcard bind so IPv4/IPv6 port conflicts are detected.
+      server.listen(port, () => {
         server.close(() => resolve(port));
       });
     };
@@ -570,6 +571,7 @@ module.exports = {
   APP_NAME,
   DEFAULT_PORT,
   DEFAULT_PRODUCER,
+  findAvailablePort,
   getObserverPaths,
   startObserverApp
 };
