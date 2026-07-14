@@ -557,6 +557,36 @@ main {
   display: none;
 }
 
+.observer-update-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.observer-update-summary span { color: var(--muted); }
+.observer-update-summary strong { overflow-wrap: anywhere; text-align: right; }
+
+.observer-update-progress {
+  height: 8px;
+  overflow: hidden;
+  margin: 14px 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+}
+
+.observer-update-progress span {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--success);
+  transition: width .2s ease;
+}
+
+.observer-update-actions { margin-top: 14px; }
+
 .stats-section {
   background: rgba(18, 26, 27, 0.5);
   border: 1px solid rgba(31, 163, 122, 0.18);

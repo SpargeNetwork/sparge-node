@@ -474,6 +474,7 @@ npm run test:invariants
 npm run test:logging
 npm run test:network
 npm run test:operator-dashboard
+npm run test:observer-updater
 npm run test:community-identity
 npm run test:backup
 npm run test:replay

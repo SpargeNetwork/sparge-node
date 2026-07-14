@@ -1,6 +1,6 @@
 {
   "name": "sparge-chain",
-  "version": "0.1.1-alpha.0",
+  "version": "0.1.2-alpha.0",
   "description": "Sparge chain producer and observer node",
   "author": "SpargeNetwork",
   "private": true,
@@ -38,6 +38,7 @@
     "test:wallet-ui": "node scripts/test-wallet-ui.js",
     "test:site-layout": "node scripts/test-site-layout.js",
     "test:observer-onboarding": "node scripts/test-observer-onboarding.js",
+    "test:observer-updater": "node scripts/test-observer-updater.js",
     "test:explorer-homepage": "node scripts/test-explorer-homepage.js",
     "test:explorer-tx": "node scripts/test-explorer-tx.js",
     "test:backup": "node scripts/test-backup.js",
@@ -52,18 +53,28 @@
   "dependencies": {
     "better-sqlite3": "^9.4.5",
     "bs58": "^5.0.0",
+    "electron-updater": "^6.6.2",
     "express": "^4.19.2",
     "yaml": "^2.4.5"
   },
   "devDependencies": {
-    "electron": "^33.2.1",
-    "electron-builder": "^25.1.8",
+    "electron": "^41.7.1",
+    "electron-builder": "^26.15.3",
     "pkg": "^5.8.1",
     "png-to-ico": "^2.1.8"
   },
   "build": {
     "appId": "io.sparge.observer",
     "productName": "Sparge Observer",
+    "artifactName": "Sparge-Observer-Setup-${version}.${ext}",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "SpargeNetwork",
+        "repo": "sparge-node",
+        "releaseType": "prerelease"
+      }
+    ],
     "files": [
       "electron/**/*",
       "package.json"
@@ -86,7 +97,7 @@
     "win": {
       "target": "nsis",
       "icon": "build/icon.ico",
-      "signAndEditExecutable": false
+      "signExecutable": false
     },
     "nsis": {
       "oneClick": false,

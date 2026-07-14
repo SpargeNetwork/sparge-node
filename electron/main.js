@@ -2,6 +2,8 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { spawn } = require('child_process');
+const electronUpdater = require('electron-updater');
+const { createUpdateManager } = require('./updateManager');
 const {
   app,
   BrowserWindow,
@@ -19,6 +21,7 @@ let backendRetryUsed = false;
 let backendReadyResolved = false;
 let tray = null;
 let isQuitting = false;
+let updateManager = null;
 
 function getObserverPaths() {
   const baseDir = path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'SpargeObserver');
@@ -194,6 +197,24 @@ function createWindow() {
   });
 }
 
+function logUpdate(level, event, details = {}) {
+  const paths = getObserverPaths();
+  fs.mkdirSync(paths.logDir, { recursive: true });
+  const safe = {
+    timestamp: new Date().toISOString(),
+    level,
+    event,
+    version: typeof details.version === 'string' ? details.version.slice(0, 32) : undefined,
+    error: typeof details.error === 'string' ? details.error.slice(0, 300) : undefined
+  };
+  fs.appendFileSync(path.join(paths.logDir, 'update.log'), `${JSON.stringify(safe)}\n`, 'utf8');
+}
+
+function sendUpdateState(state) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send('observer:updateState', state);
+}
+
 function communityIdentityUrl() {
   const cfg = readObserverConfig();
   const base = process.env.COMMUNITY_PUBLIC_BASE_URL || cfg?.communityPublicBaseUrl || cfg?.producerUrl || currentProducerUrl || '';
@@ -255,6 +276,10 @@ function createMenu() {
             const url = cfg?.producerUrl || currentProducerUrl || '';
             if (url) clipboard.writeText(url);
           }
+        },
+        {
+          label: 'Check for Updates',
+          click: () => updateManager?.check(true)
         },
         { type: 'separator' },
         { role: 'quit' }
@@ -426,6 +451,10 @@ ipcMain.handle('observer:openCommunityIdentity', async () => {
   await shell.openExternal(communityIdentityUrl());
   return true;
 });
+ipcMain.handle('observer:getUpdateState', () => updateManager?.getState() || null);
+ipcMain.handle('observer:checkForUpdates', () => updateManager?.check(true));
+ipcMain.handle('observer:downloadUpdate', () => updateManager?.download());
+ipcMain.handle('observer:installUpdate', () => updateManager?.install() || false);
 
 app.whenReady().then(() => {
   writeShellSettings(readShellSettings());
@@ -433,6 +462,17 @@ app.whenReady().then(() => {
   createWindow();
   createMenu();
   startBackend();
+  updateManager = createUpdateManager({
+    app,
+    updater: electronUpdater.autoUpdater,
+    notify: sendUpdateState,
+    log: logUpdate,
+    beforeInstall: () => {
+      isQuitting = true;
+      stopBackend();
+    }
+  });
+  updateManager.start();
 });
 
 app.on('window-all-closed', () => {
@@ -442,5 +482,6 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   isQuitting = true;
+  updateManager?.stop();
   stopBackend();
 });

@@ -102,6 +102,22 @@
         <button class="btn ghost" id="observerCommunityBtn" type="button">Open Identity Page</button>
         <div class="status" id="observerCommunityStatus"></div>
       </div>
+      <div class="observer-node-state observer-update-card">
+        <div class="observer-pane-title">App Updates</div>
+        <div class="observer-update-summary">
+          <span id="observerUpdateLabel">Checking availability</span>
+          <strong id="observerUpdateVersion">-</strong>
+        </div>
+        <div class="observer-update-progress hidden" id="observerUpdateProgress" role="progressbar" aria-label="Update download progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <span id="observerUpdateProgressFill"></span>
+        </div>
+        <div class="observer-safe-actions observer-update-actions">
+          <button class="btn ghost" id="observerCheckUpdateBtn" type="button">Check for Updates</button>
+          <button class="btn primary hidden" id="observerDownloadUpdateBtn" type="button">Download Update</button>
+          <button class="btn primary hidden" id="observerInstallUpdateBtn" type="button">Restart and Install</button>
+        </div>
+        <p class="network-note" id="observerUpdateStatus" aria-live="polite">Automatic checks are available in the installed Windows app.</p>
+      </div>
       <details class="observer-log-pane observer-diagnostics">
         <summary class="observer-pane-title">Diagnostics</summary>
         <pre class="observer-log-feed" id="observerLogFeed"></pre>

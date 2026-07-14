@@ -28,7 +28,7 @@ Build the installer with:
 npm run dist:observer:win
 ```
 
-The installer is written to `release/Sparge Observer Setup 0.1.0.exe`. First-run setup asks for the producer URL and local observer port.
+The installer is written to `release/Sparge-Observer-Setup-<version>.exe`. First-run setup asks for the producer URL and local observer port.
 
 The desktop app stores its runtime files under `%APPDATA%\SpargeObserver\`:
 
@@ -37,6 +37,24 @@ The desktop app stores its runtime files under `%APPDATA%\SpargeObserver\`:
 - `logs\node.log`: runtime log
 
 Release binaries belong in GitHub Releases, not in Git.
+
+## Desktop updates
+
+Installed Windows observers check the official `SpargeNetwork/sparge-node` GitHub Releases feed shortly after startup and every six hours while running. Update checks do not interrupt synchronization.
+
+When an update is available:
+
+1. The Observer dashboard shows the installed and available versions.
+2. The operator explicitly starts the download.
+3. The updater verifies the SHA-512 recorded in the release `latest.yml` metadata.
+4. The operator explicitly chooses **Restart and Install** after the download completes.
+5. Only then does the desktop shell stop the local observer backend and launch the installer.
+
+Updates are never downloaded or installed silently. A failed check or download leaves the current observer running. Update IPC accepts no caller-provided URL, path, or installer arguments.
+
+Version `0.1.1-alpha.0` does not contain the updater. Install `0.1.2-alpha.0` manually once; later compatible Public Alpha releases can use the in-app flow.
+
+Public Alpha installers are currently not code-signed and can trigger Windows SmartScreen. Only use the official GitHub Release, and compare its published checksum before the initial manual installation. Code signing remains required before treating silent trust prompts as production-ready.
 
 ## Synchronization status
 

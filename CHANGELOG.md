@@ -7,6 +7,7 @@ This project is pre-launch and experimental. Breaking changes are expected befor
 ## [Unreleased]
 
 ### Added
+- Consent-based Windows Observer updates through the official GitHub Releases feed, with scheduled checks, verified release metadata, explicit download/install actions, and updater regression coverage.
 - Public-alpha documentation architecture with compact MkDocs navigation, consolidated protocol/developer/operator guides, a configuration reference, and a private internal documentation area.
 - Deterministic full-chain replay CLI (`npm run replay`) and `npm run test:replay` coverage for read-only genesis-to-tip reconstruction, final state comparison, corruption detection, and restored-backup replay.
 - Production-grade producer backup and restore CLI with versioned metadata, SHA-256 checksums, SQLite snapshotting, and restore audit verification.

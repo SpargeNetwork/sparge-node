@@ -93,6 +93,14 @@ const observerMinimizeToTray = document.getElementById('observerMinimizeToTray')
 const observerShellStatus = document.getElementById('observerShellStatus');
 const observerCommunityBtn = document.getElementById('observerCommunityBtn');
 const observerCommunityStatus = document.getElementById('observerCommunityStatus');
+const observerUpdateLabel = document.getElementById('observerUpdateLabel');
+const observerUpdateVersion = document.getElementById('observerUpdateVersion');
+const observerUpdateProgress = document.getElementById('observerUpdateProgress');
+const observerUpdateProgressFill = document.getElementById('observerUpdateProgressFill');
+const observerCheckUpdateBtn = document.getElementById('observerCheckUpdateBtn');
+const observerDownloadUpdateBtn = document.getElementById('observerDownloadUpdateBtn');
+const observerInstallUpdateBtn = document.getElementById('observerInstallUpdateBtn');
+const observerUpdateStatus = document.getElementById('observerUpdateStatus');
 const devWalletPanel = document.getElementById('devWalletPanel');
 const devWalletStatus = document.getElementById('devWalletStatus');
 const createWalletBtn = document.getElementById('createWalletBtn');
@@ -3856,6 +3864,55 @@ if (observerStartWithWindows || observerMinimizeToTray) {
   observerMinimizeToTray?.addEventListener('change', saveShellSettings);
   loadShellSettings();
 }
+
+function renderObserverUpdateState(state) {
+  if (!observerUpdateStatus || !state) return;
+  const statusLabels = {
+    idle: 'Ready',
+    checking: 'Checking',
+    available: 'Update available',
+    downloading: 'Downloading',
+    downloaded: 'Ready to install',
+    current: 'Up to date',
+    unsupported: 'Installed app only',
+    error: 'Check failed'
+  };
+  observerUpdateLabel.textContent = statusLabels[state.status] || 'Unknown';
+  observerUpdateVersion.textContent = state.availableVersion
+    ? `${state.currentVersion || '-'} → ${state.availableVersion}`
+    : state.currentVersion || '-';
+  observerUpdateStatus.textContent = state.message || '';
+  const downloading = state.status === 'downloading';
+  const percent = Math.max(0, Math.min(100, Number(state.progressPercent || 0)));
+  observerUpdateProgress?.classList.toggle('hidden', !downloading);
+  if (observerUpdateProgress) observerUpdateProgress.setAttribute('aria-valuenow', String(Math.round(percent)));
+  if (observerUpdateProgressFill) observerUpdateProgressFill.style.width = `${percent}%`;
+  observerCheckUpdateBtn?.toggleAttribute('disabled', state.status === 'checking' || downloading);
+  observerDownloadUpdateBtn?.classList.toggle('hidden', state.status !== 'available');
+  observerInstallUpdateBtn?.classList.toggle('hidden', state.status !== 'downloaded');
+}
+
+if (observerUpdateStatus) {
+  if (!window.observerShell?.getUpdateState) {
+    renderObserverUpdateState({ status: 'unsupported', currentVersion: latestState?.softwareVersion || '-', message: 'Updates are available in the installed Windows app.' });
+  } else {
+    window.observerShell.onUpdateState?.(renderObserverUpdateState);
+    window.observerShell.getUpdateState().then(renderObserverUpdateState).catch(() => {
+      renderObserverUpdateState({ status: 'error', currentVersion: '-', message: 'Update status could not be loaded.' });
+    });
+  }
+}
+
+observerCheckUpdateBtn?.addEventListener('click', () => {
+  window.observerShell?.checkForUpdates?.().then(renderObserverUpdateState).catch(() => {});
+});
+observerDownloadUpdateBtn?.addEventListener('click', () => {
+  window.observerShell?.downloadUpdate?.().then(renderObserverUpdateState).catch(() => {});
+});
+observerInstallUpdateBtn?.addEventListener('click', () => {
+  if (!window.confirm('Restart Sparge Observer and install the downloaded update now?')) return;
+  window.observerShell?.installUpdate?.();
+});
 
 function setCommunityStatus(message) {
   if (communityStatus) communityStatus.textContent = message || '';
