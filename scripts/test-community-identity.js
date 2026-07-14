@@ -13,6 +13,11 @@ const { deriveAddress, signCanonicalMessage } = require('../server/lib/tx');
 const { redact } = require('../server/lib/logger');
 
 const root = path.join(__dirname, '..');
+const serverSource = fs.readFileSync(path.join(root, 'server', 'index.js'), 'utf8');
+assert.ok(
+  serverSource.indexOf("require('dotenv').config") < serverSource.indexOf("require('./lib/config')"),
+  'environment file is loaded before node configuration'
+);
 const outDir = path.join(__dirname, 'out', 'community-identity');
 fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });

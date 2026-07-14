@@ -1,6 +1,7 @@
 ﻿const path = require('path');
 const express = require('express');
 const crypto = require('crypto');
+require('dotenv').config({ quiet: true });
 const { loadConfig } = require('./lib/config');
 const { createBlockchain } = require('./lib/blockchain');
 const { createMiner } = require('./lib/miner');
