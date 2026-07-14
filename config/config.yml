@@ -211,10 +211,10 @@ network:
 # the official SpargeNetwork/sparge-node GitHub Releases repository.
 observerDownloads:
   enabled: true
-  version: "0.1.3-alpha.0"
+  version: "0.1.4-alpha.0"
   releaseDate: "2026-07-14"
   windowsInstaller:
-    url: "https://github.com/SpargeNetwork/sparge-node/releases/download/v0.1.3-alpha.0/Sparge-Observer-Setup-0.1.3-alpha.0.exe"
-    fileName: "Sparge-Observer-Setup-0.1.3-alpha.0.exe"
-    fileSizeBytes: 164015086
-    checksumSha256: "05c70517705cbe03a250b3771aeee9ca0503817990dabf0b94171d2532e4dcc3"
+    url: "https://github.com/SpargeNetwork/sparge-node/releases/download/v0.1.4-alpha.0/Sparge-Observer-Setup-0.1.4-alpha.0.exe"
+    fileName: "Sparge-Observer-Setup-0.1.4-alpha.0.exe"
+    fileSizeBytes: 161531330
+    checksumSha256: "653aade6e1ab651a58447513a6c9e0980d2f5a2d9300017578c81638d872835e"

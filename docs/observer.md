@@ -52,7 +52,7 @@ When an update is available:
 
 Updates are never downloaded or installed silently. A failed check or download leaves the current observer running. Update IPC accepts no caller-provided URL, path, or installer arguments.
 
-Version `0.1.1-alpha.0` does not contain the updater. If `0.1.2-alpha.0` opens a white **Not found** screen, install `0.1.3-alpha.0` manually. Later compatible Public Alpha releases can use the in-app flow.
+Version `0.1.1-alpha.0` does not contain the updater. If version `0.1.2-alpha.0` or `0.1.3-alpha.0` opens a white **Not found** screen, install `0.1.4-alpha.0` manually. Later compatible Public Alpha releases can use the in-app flow.
 
 Public Alpha installers are currently not code-signed and can trigger Windows SmartScreen. Only use the official GitHub Release, and compare its published checksum before the initial manual installation. Code signing remains required before treating silent trust prompts as production-ready.
 
