@@ -88,17 +88,15 @@ function operatorRouter({ blockchain, storage, mempool, miner, config, dataDir, 
     next();
   }
 
-  router.use(requireOperatorAccess);
-
-  router.get(['/operator', '/operator/'], (req, res) => {
+  router.get(['/operator', '/operator/'], requireOperatorAccess, (req, res) => {
     res.sendFile(path.join(root, 'dashboard.html'));
   });
 
-  router.get('/operator/operator-dashboard.js', (req, res) => {
+  router.get('/operator/operator-dashboard.js', requireOperatorAccess, (req, res) => {
     res.sendFile(path.join(root, 'operator-dashboard.js'));
   });
 
-  router.get('/api/operator/status', (req, res) => {
+  router.get('/api/operator/status', requireOperatorAccess, (req, res) => {
     const state = blockchain.getState();
     const blocks = storage.getAllBlocks ? storage.getAllBlocks() : [];
     const latestBlock = state.latestBlock || blocks[blocks.length - 1] || null;

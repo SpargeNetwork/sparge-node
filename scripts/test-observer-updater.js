@@ -20,7 +20,7 @@ async function main() {
   let beforeInstall = false;
   let scheduledCheck = null;
   const manager = createUpdateManager({
-    app: { isPackaged: true, getVersion: () => '0.1.2-alpha.0' },
+    app: { isPackaged: true, getVersion: () => '0.1.3-alpha.0' },
     updater,
     platform: 'win32',
     notify: (state) => states.push(state),
@@ -37,14 +37,14 @@ async function main() {
   assert.strictEqual(typeof scheduledCheck, 'function', 'automatic startup check is scheduled');
   await manager.check(true);
   assert.strictEqual(manager.getState().status, 'checking');
-  updater.emit('update-available', { version: '0.1.3-alpha.0' });
+  updater.emit('update-available', { version: '0.1.4-alpha.0' });
   assert.strictEqual(manager.getState().status, 'available');
-  assert.strictEqual(manager.getState().availableVersion, '0.1.3-alpha.0');
+  assert.strictEqual(manager.getState().availableVersion, '0.1.4-alpha.0');
   await manager.download();
   assert.strictEqual(updater.downloadCalled, true);
   updater.emit('download-progress', { percent: 48.5 });
   assert.strictEqual(manager.getState().progressPercent, 48.5);
-  updater.emit('update-downloaded', { version: '0.1.3-alpha.0' });
+  updater.emit('update-downloaded', { version: '0.1.4-alpha.0' });
   assert.strictEqual(manager.getState().status, 'downloaded');
   assert.strictEqual(manager.install(), true);
   assert.strictEqual(beforeInstall, true, 'backend stop hook runs before installation');

@@ -83,6 +83,7 @@ function startApp(context, trustProxy = false) {
   const app = express();
   app.set('trust proxy', trustProxy);
   app.use(operatorRouter(context));
+  app.get('/', (_req, res) => res.send('public explorer'));
   const server = app.listen(0);
   return new Promise((resolve) => {
     server.on('listening', () => resolve({ server, port: server.address().port }));
@@ -94,6 +95,9 @@ function startApp(context, trustProxy = false) {
   try {
     assert.strictEqual((await request(started.port, '/operator')).statusCode, 404, 'dashboard route is unavailable when disabled');
     assert.strictEqual((await request(started.port, '/api/operator/status')).statusCode, 404, 'operator status is unavailable when disabled');
+    const publicRoot = await request(started.port, '/');
+    assert.strictEqual(publicRoot.statusCode, 200, 'disabled dashboard does not intercept the public root');
+    assert.strictEqual(publicRoot.body, 'public explorer');
   } finally {
     started.server.close();
   }
